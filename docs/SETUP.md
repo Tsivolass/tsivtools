@@ -222,6 +222,10 @@ Menu controls:
 | Enter | Select |
 | Backspace | Back, and close at the top level |
 
+When an option asks you to type something, a text box opens over the game.
+Enter confirms, Escape cancels, and **Ctrl+V pastes** - which is what you want
+for identifiers.
+
 ---
 
 ## 11. Try it
@@ -249,11 +253,20 @@ Work through these in order. Every one of them should do something visible.
 - Your F8 console gets a line like:
 
   ```
-  [tsivtools] prop spawned: user ID = 1 (YourName), prop ID = 131074, netId = 5, model = -1273811207
+  [tsivtools] prop spawned: user ID = 1 (YourName), prop ID = 131074, netId = 5, model = prop_barrel_01a (1541800960)
   ```
 
-  Turn it back off when you are done. On a busy server this is a lot of output,
-  which is why it is off by default.
+  A model is named if tsivtools knows it, from the blacklists,
+  `Config.VehicleList` or `Config.AntiCheat.knownModels`. Anything else shows a
+  bare unsigned hash you can paste into a model lookup site. Add your own props
+  to `knownModels` to make the logs readable.
+
+  These spawns are also written to the log store, so **Staff & Logs → Look up
+  an identifier** will show them afterwards. Turn that off with
+  `Config.AntiCheat.logSpawnsToStore = false` if you only want them live.
+
+  Turn the switch back off when you are done. On a busy server this is a lot of
+  output, which is why it is off by default.
 
 **Prop spam detection**
 
@@ -339,6 +352,12 @@ cannot enumerate entities, so there is nothing to log or delete.
 
 `Config.Database.enabled` is `true` but oxmysql is not running. Either install
 oxmysql and `ensure` it above tsivtools, or set `enabled` back to `false`.
+
+**A text box opens but nothing happens when I confirm**
+
+Check `Config.UseNuiInput`. With it `true` you get an HTML box with paste
+support. With it `false` you get the game's own keyboard, which has no
+clipboard support at all.
 
 **Everything is fine but nothing is logged**
 

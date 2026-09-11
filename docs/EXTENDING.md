@@ -108,7 +108,9 @@ end
 **Wrap anything that waits in `CreateThread`.**
 
 `TSIV.Input`, `TSIV.InputNumber` and `TSIV.Request` all block until they get an
-answer. A menu callback runs on the menu's own thread, so blocking in one
+answer. `TSIV.Input` opens an HTML text box (so it supports paste), takes NUI
+focus, and locks the menu's key handling until it closes - all of which it
+undoes for you on both the confirm and the cancel path. A menu callback runs on the menu's own thread, so blocking in one
 freezes the menu. Every callback in `client/main.lua` that waits is wrapped:
 
 ```lua

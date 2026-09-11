@@ -65,8 +65,18 @@ entirely with `Config.UseAcePermissions = false`.
 
 **3. From inside the menu**
 
-**Players → Select player → Set staff rank**. Stored in `data/staff.json`, so
-it survives a restart. Nobody can grant a rank equal to or above their own.
+**Players → Select player → Set staff rank**. Arrow left and right to pick the
+rank, then press Enter to apply it. Stored in `data/staff.json`, so it survives
+a restart.
+
+You can grant up to and including your own rank, but never above it, and you
+cannot change the rank of somebody who already holds your rank or higher. So an
+owner can make a second owner - but once they have, neither can demote the
+other, and you will need to edit `data/staff.json` or `Config.Staff` by hand to
+undo it.
+
+"remove rank" is the last entry in the list rather than the first, so pressing
+Enter without arrowing cannot strip somebody's rank by accident.
 
 ---
 
@@ -171,6 +181,24 @@ before. Once somebody has connected once, their own choice in
 Settings → Key Bindings → FiveM wins and this value is ignored for them.
 Changing it will not move an existing bind.
 
+### Text boxes
+
+```lua
+Config.UseNuiInput = true
+```
+
+Every prompt that asks you to type something - a ban reason, an identifier, a
+model name - is an HTML box drawn over the game. **That is what makes Ctrl+V
+work.** The game's own on-screen keyboard has no clipboard support of any kind,
+so an identifier cannot be pasted into it.
+
+In the box: Enter confirms, Escape cancels, clicking outside it cancels. The
+menu stops reading keys while it is open, so typing does not move the cursor
+underneath.
+
+Setting this to `false` falls back to the game keyboard. You lose paste. Only
+worth doing if an NUI frame causes you a specific problem.
+
 To hide or reorder whole sections, edit `Config.MenuSections`:
 
 ```lua
@@ -212,9 +240,42 @@ Deleting `data/settings.json` while the server is stopped resets it.
 `logVehicleSpawns` and `logPedSpawns` do the same for those, and have no
 runtime toggle.
 
-Only the entity's model **hash** is printed, not its name. The server has no
-hash-to-name table. Paste the hash into a model name lookup if you need the
-name.
+### Spawns in the log store
+
+```lua
+Config.AntiCheat.logSpawnsToStore = true
+```
+
+Spawns are written to the tsivtools log store as well as to F8, under the
+`props` category. That is what lets the identifier lookup answer "what did this
+player spawn an hour ago?" instead of only showing it live.
+
+Nothing is written unless the matching logging switch above is on, so this
+cannot grow a file you did not ask for. Turn the category off entirely in
+`Config.Logging.categories.props`, and remember `Config.Logging.maxEntries`
+caps the file - a busy server with prop logging on will churn through it.
+
+### Model names
+
+The server sees a model **hash**. A hash cannot be turned back into a name,
+so tsivtools hashes every name it already knows and recognises those:
+
+- everything in the three blacklists
+- everything in `Config.VehicleList`
+- everything in `Config.AntiCheat.knownModels`
+
+A recognised model prints as `prop_barrel_01a (1541800960)`. Anything else
+prints as a bare unsigned hash, which is the form model lookup sites index by.
+
+To make your logs readable, add the props your server actually uses:
+
+```lua
+Config.AntiCheat.knownModels = {
+    'prop_barrel_01a',
+    'prop_roadcone02a',
+    'your_custom_prop',
+}
+```
 
 ---
 

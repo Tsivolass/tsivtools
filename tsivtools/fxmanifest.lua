@@ -20,6 +20,14 @@ client_scripts {
     'client/main.lua',
 }
 
+ui_page 'ui/input.html'
+
+files {
+    'ui/input.html',
+    'ui/input.css',
+    'ui/input.js',
+}
+
 server_scripts {
     'server/storage.lua',
     'server/core.lua',

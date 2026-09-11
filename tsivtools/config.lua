@@ -58,6 +58,15 @@ Config.MenuWatermark = true
 -- Play the standard GTA menu click sounds.
 Config.MenuSounds = true
 
+-- Text boxes (ban reasons, identifiers, model names) use an HTML input drawn
+-- over the game. That is what makes Ctrl+V work: the game's own on-screen
+-- keyboard has no clipboard support at all, so an identifier cannot be pasted
+-- into it.
+--
+-- Set this to false to fall back to the game keyboard. You lose paste, and it
+-- is only worth doing if an NUI frame causes you a problem.
+Config.UseNuiInput = true
+
 -- ============================================================================
 -- 2. Ranks
 -- ============================================================================
@@ -289,6 +298,32 @@ Config.AntiCheat = {
     logVehicleSpawns = false,
     logPedSpawns     = false,
 
+    -- Write those same spawns into the tsivtools log store as well as the F8
+    -- console, so the identifier lookup can show you what somebody spawned
+    -- hours ago. Only ever written while the matching logging switch above is
+    -- on, so nothing grows unless you asked for it. Recorded under the 'props'
+    -- category, which you can turn off in Config.Logging.categories.
+    logSpawnsToStore = true,
+
+    -- The server sees a model hash, not a model name, and there is no way to
+    -- turn one back into the other. Any name listed here or in the blacklists
+    -- and Config.VehicleList is recognised and printed by name; everything
+    -- else prints as a bare hash you can paste into a model lookup site.
+    --
+    -- Add the props your server actually uses, and the logs become readable.
+    knownModels = {
+        'prop_barrel_01a',
+        'prop_barrier_work05',
+        'prop_boxpile_07d',
+        'prop_roadcone02a',
+        'prop_cardbordbox_04a',
+        'prop_logpile_06',
+        'prop_bench_01a',
+        'prop_chair_01a',
+        'prop_crate_11a',
+        'prop_ld_crate_01',
+    },
+
     -- ------------------------------------------------------------------
     -- Prop spam
     -- ------------------------------------------------------------------
@@ -449,6 +484,7 @@ Config.Logging = {
         connect   = true,   -- joins / leaves
         ban       = true,
         garage    = true,
+        props     = true,   -- entity spawns, while spawn logging is switched on
         chat      = false,
     },
 
@@ -464,6 +500,9 @@ Config.Logging = {
             connect   = '',
             ban       = '',
             garage    = '',
+            -- Leave this empty unless you really want every spawned prop in a
+            -- Discord channel. It is a lot of traffic.
+            props     = '',
         },
         colours = {
             staff     = 3066993,
@@ -471,6 +510,7 @@ Config.Logging = {
             connect   = 3447003,
             ban       = 10038562,
             garage    = 15844367,
+            props     = 9807270,
         },
     },
 }

@@ -194,12 +194,42 @@ local function ownerOf(entity)
     return nil
 end
 
---- Model name if the server knows it, otherwise the raw hash as a string. The
---- server does not have a hash-to-name table, so blacklist entries are matched
---- by hash and the name is only used for display when it was supplied.
-local function modelLabel(model)
-    return tostring(model)
+-- The server only ever sees a model hash, and a hash cannot be turned back
+-- into a name. What it can do is hash every name it already knows about - the
+-- blacklists, the spawn list, Config.AntiCheat.knownModels - and recognise
+-- those when they come back. Anything else is printed as a bare hash.
+local modelNames = {}
+
+local function learnModels(list, field)
+    for _, entry in ipairs(list or {}) do
+        local name = field and entry[field] or entry
+        if type(name) == 'string' then
+            modelNames[GetHashKey(name:lower())] = name:lower()
+        end
+    end
 end
+
+learnModels(settings.blacklistedProps)
+learnModels(settings.blacklistedVehicles)
+learnModels(settings.blacklistedPeds)
+learnModels(settings.knownModels)
+learnModels(Config.VehicleList, 'model')
+
+--- A model as a readable string: its name when known, and always the unsigned
+--- hash, which is the form model lookup sites index by.
+local function modelLabel(model)
+    if type(model) ~= 'number' then return tostring(model) end
+
+    local unsigned = model < 0 and (model + 4294967296) or model
+    local name = modelNames[model]
+
+    if name then
+        return ('%s (%d)'):format(name, unsigned)
+    end
+    return tostring(unsigned)
+end
+
+TSIV.AntiCheat.ModelLabel = modelLabel
 
 AddEventHandler('entityCreating', function(entity)
     if not settings.enabled then return end
@@ -274,11 +304,33 @@ AddEventHandler('entityCreated', function(entity)
         or (kind == 'peds'     and settings.logPedSpawns)
 
     if shouldLog then
+        local singular = kind:sub(1, #kind - 1)
         local line = ('%s spawned: user ID = %s (%s), prop ID = %s, netId = %s, model = %s'):format(
-            kind:sub(1, #kind - 1), owner, TSIV.GetName(owner), entity, netId, modelLabel(model))
+            singular, owner, TSIV.GetName(owner), entity, netId, modelLabel(model))
 
         for _, member in ipairs(TSIV.GetStaff(settings.propLogRank)) do
             TSIV.Console(member.source, line)
+        end
+
+        -- Also record it, so the identifier lookup can answer "what did this
+        -- player spawn earlier?" rather than only showing it live in F8.
+        if settings.logSpawnsToStore then
+            TSIV.Logs.Write({
+                category = 'props',
+                message = line,
+                actor = TSIV.GetPrimaryIdentifier(owner),
+                actorName = TSIV.GetName(owner),
+                target = TSIV.GetPrimaryIdentifier(owner),
+                targetName = TSIV.GetName(owner),
+                data = {
+                    kind = singular,
+                    userId = owner,
+                    entity = entity,
+                    netId = netId,
+                    model = modelLabel(model),
+                    steam = TSIV.GetSteamId(owner),
+                },
+            })
         end
     end
 
