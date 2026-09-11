@@ -33,7 +33,7 @@ Three things to keep in your head:
 
 Four edits. Follow them in this order.
 
-### 1. Add a permission key
+### 1. Add a permission key and a feature switch
 
 `config.lua`, in `Config.Permissions`:
 
@@ -43,6 +43,13 @@ Four edits. Follow them in this order.
 
 Skipping this step does not make the option free, it makes it owner-only. An
 unknown key is deliberately treated as the highest rank.
+
+Then add the matching switch in `Config.Features`, so the option can be turned
+off like every other one:
+
+```lua
+['self.settime'] = true,
+```
 
 ### 2. Register the action on the server
 
@@ -129,10 +136,6 @@ somebody's console.
 
 **Do not trust a server id from a client.** Use `TSIV.ResolveTarget`, which
 returns `nil` unless it is a currently connected player.
-
-**Check rank before acting on another staff member.** `TSIV.OutranksTarget(src,
-target)` returns false when the target is the same rank or higher. Without it
-one moderator can kick another.
 
 ---
 
@@ -371,11 +374,14 @@ hint it is.
 
 ## House style
 
-Not rules, but the existing code is consistent about these and it is easier to
-work in if you match:
+Match what is already there:
 
 - Four spaces, no tabs.
 - `local` everything that is not deliberately shared.
-- Comments explain **why**, not what. The code says what.
+- **Do not write comments.** The code carries no comments except a handful in
+  `config.lua`, and it stays that way. No file header blocks, no `-- ------`
+  separator bars, no `---` doc comments. Name things well instead.
+- Messages shown to players are short and end in `!` rather than a full stop:
+  `'Player isnt online !'`, `'No vehicle nearby !'`. A `:)` is fine.
 - No `while true do ... end` without a `Wait()`. It will hang the client.
 - Anything a player typed gets validated on the server before it is used.

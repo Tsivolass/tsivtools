@@ -69,16 +69,48 @@ entirely with `Config.UseAcePermissions = false`.
 rank, then press Enter to apply it. Stored in `data/staff.json`, so it survives
 a restart.
 
-You can grant up to and including your own rank, but never above it, and you
-cannot change the rank of somebody who already holds your rank or higher. So an
-owner can make a second owner - but once they have, neither can demote the
-other, and you will need to edit `data/staff.json` or `Config.Staff` by hand to
-undo it.
+You can grant up to and including your own rank, but never above it. So an
+owner can make a second owner, and a superadmin cannot promote anybody to
+owner.
+
+There is no restriction on who you can act on. Any staff member with the
+permission for an option can use it on anybody, including somebody of a higher
+rank, so a moderator with `player.kick` can kick the owner. Set your
+permissions accordingly.
 
 "remove rank" is the last entry in the list rather than the first, so pressing
 Enter without arrowing cannot strip somebody's rank by accident.
 
 ---
+
+## Turning features off
+
+`Config.Features` has one switch per menu option. Set one to `false` and that
+option is gone: it is not built into the menu, it is not sent to any client,
+and the server refuses it even if something asks for it directly.
+
+```lua
+Config.Features = {
+    ['player.kick']   = false,   -- nobody can kick, whatever their rank
+    ['vehicle.dvall'] = false,
+    ['garage.give']   = true,
+}
+```
+
+Set every entry to `false` and the menu is switched off completely - even
+`menu.open`, so the key does nothing at all.
+
+A key that is missing from the table counts as enabled, so deleting a line
+turns the option **on**, not off. That is the opposite of `Config.Permissions`,
+where a missing line locks the option to the top rank.
+
+The two tables are independent and both must pass:
+
+| | `Config.Features` | `Config.Permissions` |
+|---|---|---|
+| Question it answers | does this option exist at all? | who is allowed to use it? |
+| Value | `true` / `false` | a rank name, or `false` |
+| Missing line means | enabled | owner only |
 
 ## Which options each rank sees
 
