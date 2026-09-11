@@ -1,26 +1,9 @@
---[[
-    tsivtools - storage
-
-    One layer over the two ways tsivtools can persist data:
-
-      file  - JSON inside tsivtools/data/. Nothing to install.
-      mysql - a real table through oxmysql.
-
-    Everything above this file (bans, logs, garage) only ever calls the
-    functions here, so switching Config.Database.enabled does not require
-    changes anywhere else.
-]]
-
 TSIV.Storage = {}
 
 local Storage = TSIV.Storage
 local cache = {}
 local dirty = {}
 local useMysql = Config.Database.enabled
-
--- ---------------------------------------------------------------------------
--- File backend
--- ---------------------------------------------------------------------------
 
 local function filePath(name)
     return ('data/%s.json'):format(name)
@@ -37,8 +20,6 @@ local function loadFile(name)
         if ok and type(decoded) == 'table' then
             data = decoded
         else
-            -- A corrupt file is kept aside rather than silently overwritten,
-            -- so the data is still there to look at afterwards.
             SaveResourceFile(TSIV.resource, filePath(name .. '.corrupt'), raw, -1)
             print(('%sdata/%s.json could not be parsed, it was renamed to %s.corrupt.json and a fresh file was started')
                 :format(Config.ConsolePrefix, name, name))
@@ -55,9 +36,6 @@ local function saveFile(name)
     SaveResourceFile(TSIV.resource, filePath(name), json.encode(data), -1)
 end
 
--- Files are flushed on a timer rather than on every write. A log-heavy server
--- would otherwise spend its time re-encoding the same JSON dozens of times a
--- second.
 CreateThread(function()
     while true do
         Wait(5000)
@@ -75,8 +53,6 @@ AddEventHandler('onResourceStop', function(resource)
     end
 end)
 
---- Read a whole file-backed collection. The returned table is live: mutate it
---- and then call Storage.MarkDirty to have it written out.
 function Storage.Get(name)
     return loadFile(name)
 end
@@ -97,16 +73,10 @@ function Storage.Flush(name)
     end
 end
 
--- ---------------------------------------------------------------------------
--- MySQL backend
--- ---------------------------------------------------------------------------
-
 function Storage.UsingMysql()
     return useMysql
 end
 
---- Thin wrappers so the rest of the resource never has to know whether
---- oxmysql is present. Each returns nil when MySQL is off.
 function Storage.Query(query, params)
     if not useMysql then return nil end
     return MySQL.query.await(query, params or {})
@@ -131,10 +101,6 @@ function Storage.Insert(query, params)
     if not useMysql then return nil end
     return MySQL.insert.await(query, params or {})
 end
-
--- ---------------------------------------------------------------------------
--- Schema
--- ---------------------------------------------------------------------------
 
 local function ensureSchema()
     if not useMysql then return end
@@ -176,7 +142,6 @@ end
 
 CreateThread(function()
     if useMysql then
-        -- oxmysql needs a moment to come up if it started alongside tsivtools.
         local waited = 0
         while GetResourceState('oxmysql') ~= 'started' and waited < 10000 do
             Wait(250)

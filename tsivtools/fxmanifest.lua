@@ -3,9 +3,9 @@ game 'gta5'
 lua54 'yes'
 
 name 'tsivtools'
-description 'Staff toolkit and entity protection for FiveM'
-author 'tsivolass'
-version '1.0.0'
+description 'A set of tools useful for anticheat and generic actions'
+author 'Tsivolakos :)   discord username: tsivolass'
+version '0.2'
 
 shared_scripts {
     'config.lua',
@@ -39,8 +39,6 @@ server_scripts {
     'server/anticheat.lua',
 }
 
--- Optional. Only loaded when Config.Database.enabled is true.
--- Requires oxmysql to be started before tsivtools.
 dependencies {
     '/server:5848',
     '/onesync',

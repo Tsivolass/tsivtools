@@ -1,11 +1,3 @@
---[[
-    tsivtools - Discord webhooks
-
-    Optional mirror of the log store into Discord. Turn it on in
-    Config.Logging.discord and paste a webhook URL per category. A category
-    with an empty URL is simply skipped.
-]]
-
 TSIV.Discord = {}
 
 local queue = {}
@@ -19,8 +11,6 @@ local function post(url, payload)
     end, 'POST', json.encode(payload), { ['Content-Type'] = 'application/json' })
 end
 
--- Discord rate limits webhooks fairly aggressively. Entries are queued and
--- drained slowly so a burst of detections does not get dropped on the floor.
 CreateThread(function()
     while true do
         Wait(1200)
@@ -33,7 +23,6 @@ CreateThread(function()
     end
 end)
 
---- Called by TSIV.Logs.Write for every record.
 function TSIV.Discord.Send(category, record)
     local settings = Config.Logging.discord
     if not settings.enabled then return end
@@ -73,7 +62,7 @@ function TSIV.Discord.Send(category, record)
                 description = record.message,
                 color = settings.colours[category] or 8421504,
                 fields = fields,
-                footer = { text = ('tsivtools  |  %s'):format(TSIV.FormatTimestamp(record.at)) },
+                footer = { text = ('TsivTools  /  %s'):format(TSIV.FormatTimestamp(record.at)) },
             } },
         },
     }

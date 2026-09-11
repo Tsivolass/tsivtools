@@ -69,11 +69,14 @@ entirely with `Config.UseAcePermissions = false`.
 rank, then press Enter to apply it. Stored in `data/staff.json`, so it survives
 a restart.
 
-You can grant up to and including your own rank, but never above it, and you
-cannot change the rank of somebody who already holds your rank or higher. So an
-owner can make a second owner - but once they have, neither can demote the
-other, and you will need to edit `data/staff.json` or `Config.Staff` by hand to
-undo it.
+You can grant up to and including your own rank, but never above it. So an
+owner can make a second owner, and a superadmin cannot promote anybody to
+owner.
+
+There is no restriction on who you can act on. Any staff member with the
+permission for an option can use it on anybody, including somebody of a higher
+rank, so a moderator with `player.kick` can kick the owner. Set your
+permissions accordingly.
 
 "remove rank" is the last entry in the list rather than the first, so pressing
 Enter without arrowing cannot strip somebody's rank by accident.

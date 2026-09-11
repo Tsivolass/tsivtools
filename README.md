@@ -65,6 +65,8 @@ docs/
 
 - Ranks with per-option permission mapping. An option a rank cannot use is
   never sent to that client, and is checked again on the server when used.
+  There is no staff-on-staff restriction: whoever holds a permission can use it
+  on anybody, so set the permissions to match the trust.
 - Bans against every identifier a player held, enforced on connect.
 - A searchable log of every staff action, detection, ban, garage change and
   connection, with optional Discord webhook mirroring.

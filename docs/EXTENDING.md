@@ -130,10 +130,6 @@ somebody's console.
 **Do not trust a server id from a client.** Use `TSIV.ResolveTarget`, which
 returns `nil` unless it is a currently connected player.
 
-**Check rank before acting on another staff member.** `TSIV.OutranksTarget(src,
-target)` returns false when the target is the same rank or higher. Without it
-one moderator can kick another.
-
 ---
 
 ## The menu API
@@ -371,11 +367,17 @@ hint it is.
 
 ## House style
 
-Not rules, but the existing code is consistent about these and it is easier to
-work in if you match:
+Match what is already there:
 
 - Four spaces, no tabs.
 - `local` everything that is not deliberately shared.
-- Comments explain **why**, not what. The code says what.
+- **Comments are sparse and short.** One line, lower case, only where the code
+  genuinely needs explaining. No file header blocks, no `-- ------` separator
+  bars, no `---` doc comments above every function. If the code says it, do not
+  write it again.
+- `config.lua` carries most of the comments, because that is the file people
+  edit. Everything else is close to comment free.
+- Messages shown to players are short and end in `!` rather than a full stop:
+  `'Player isnt online !'`, `'No vehicle nearby !'`. A `:)` is fine.
 - No `while true do ... end` without a `Wait()`. It will hang the client.
 - Anything a player typed gets validated on the server before it is used.

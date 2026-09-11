@@ -1,21 +1,3 @@
---[[
-    tsivtools - anti-cheat
-
-    Server side entity protection. Everything here hangs off the two events the
-    server gets for free when OneSync is on:
-
-        entityCreating  - fires before the entity exists. Cancelling the event
-                          stops it being created at all, which is how the model
-                          blacklist works.
-        entityCreated   - fires once it exists and has a network id, which is
-                          when the owner is reliable.
-
-    This is not, and cannot be, a complete anti-cheat. It watches what the
-    server can actually see - who created what, how fast, and which models -
-    and it tells your staff. Treat every detection as something to go and look
-    at, not as proof on its own.
-]]
-
 TSIV.AntiCheat = {}
 
 local AntiCheat = TSIV.AntiCheat
@@ -25,16 +7,9 @@ local blacklistedProps    = TSIV.BuildModelSet(settings.blacklistedProps)
 local blacklistedVehicles = TSIV.BuildModelSet(settings.blacklistedVehicles)
 local blacklistedPeds     = TSIV.BuildModelSet(settings.blacklistedPeds)
 
--- Per player sliding windows, one per entity kind.
 local windows = {}
--- Which entities a player created, so they can be cleaned up in one go.
 local createdBy = {}
--- Entities that were part of a burst, deleted when the burst is confirmed.
 local burst = {}
-
--- ---------------------------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------------------------
 
 local function isExempt(src)
     if not src or src <= 0 then return true end
@@ -66,15 +41,11 @@ function AntiCheat.IsBlacklistedPed(model)
     return blacklistedPeds[model] ~= nil
 end
 
---- Remember who created an entity, so "delete everything this player spawned"
---- and the disconnect cleanup both have something to work from.
 local function remember(src, entity, model, kind)
     createdBy[src] = createdBy[src] or {}
     createdBy[src][entity] = { model = model, kind = kind, at = os.time() }
 end
 
---- Delete every entity a player created. kind may be 'props', 'vehicles',
---- 'peds' or nil for everything.
 function AntiCheat.DeleteEntitiesOf(src, kind)
     local owned = createdBy[src]
     if not owned then return 0 end
@@ -90,12 +61,6 @@ function AntiCheat.DeleteEntitiesOf(src, kind)
     return removed
 end
 
--- ---------------------------------------------------------------------------
--- Punishment
--- ---------------------------------------------------------------------------
-
---- Apply the configured response to a detection. Always alerts; additionally
---- kicks or bans depending on `action`.
 local function punish(src, action, reason, banLength, detail)
     local name = TSIV.GetName(src)
     local steam = TSIV.GetSteamId(src)
@@ -104,11 +69,11 @@ local function punish(src, action, reason, banLength, detail)
     local headline = ('%s^1[anticheat]^7 %s ^3(id %s)^7 - %s'):format(Config.Prefix, name, src, reason)
 
     local lines = {
-        ('player     : %s'):format(name),
-        ('user ID    : %s'):format(src),
-        ('steam ID   : %s'):format(steam),
-        ('identifier : %s'):format(identifier),
-        ('detection  : %s'):format(reason),
+        ('player    : %s'):format(name),
+        ('user ID   : %s'):format(src),
+        ('steam ID  : %s'):format(steam),
+        ('identifier: %s'):format(identifier),
+        ('detection : %s'):format(reason),
     }
     for _, extra in ipairs(detail or {}) do
         lines[#lines + 1] = extra
@@ -128,17 +93,12 @@ local function punish(src, action, reason, banLength, detail)
     if action == 'ban' then
         TSIV.Bans.BanPlayer(src, ('[tsivtools] %s'):format(reason), banLength or 0, 'tsivtools anticheat')
     elseif action == 'kick' then
-        DropPlayer(src, ('Kicked by tsivtools.\n\nReason: %s'):format(reason))
+        DropPlayer(src, ('Kicked by TsivTools.\n\nReason: %s'):format(reason))
     end
 end
 
 AntiCheat.Punish = punish
 
--- ---------------------------------------------------------------------------
--- Spam detection
--- ---------------------------------------------------------------------------
-
---- Push one spawn into a player's window and act if the threshold is crossed.
 local function checkSpam(src, kind, rules, entity, modelName)
     if not rules.enabled then return end
     if isExempt(src) then return end
@@ -155,13 +115,11 @@ local function checkSpam(src, kind, rules, entity, modelName)
 
     if count <= rules.threshold then return end
 
-    -- Reset first, so a player who keeps going does not fire an alert on every
-    -- single subsequent spawn.
     window:reset()
 
     local detail = {
-        ('count      : %d in %.1f second(s), limit is %d'):format(count, rules.window, rules.threshold),
-        ('last model : %s'):format(modelName or 'unknown'),
+        ('count     : %d in %.1f second(s), limit is %d'):format(count, rules.window, rules.threshold),
+        ('last model: %s'):format(modelName or 'unknown'),
     }
 
     if rules.cleanup then
@@ -172,20 +130,15 @@ local function checkSpam(src, kind, rules, entity, modelName)
                 removed = removed + 1
             end
         end
-        detail[#detail + 1] = ('cleanup    : deleted %d entity(s) from the burst'):format(removed)
+        detail[#detail + 1] = ('cleanup : deleted %d entity(s) from the burst'):format(removed)
     end
     burst[src][kind] = {}
 
     punish(src, rules.action, rules.reason, rules.banLength, detail)
 end
 
--- ---------------------------------------------------------------------------
--- Entity creation
--- ---------------------------------------------------------------------------
-
 local kindByType = { [1] = 'peds', [2] = 'vehicles', [3] = 'props' }
 
---- The owner of an entity as a server id, or nil.
 local function ownerOf(entity)
     local owner = NetworkGetEntityOwner(entity)
     if owner and owner > 0 and GetPlayerName(owner) then
@@ -194,10 +147,6 @@ local function ownerOf(entity)
     return nil
 end
 
--- The server only ever sees a model hash, and a hash cannot be turned back
--- into a name. What it can do is hash every name it already knows about - the
--- blacklists, the spawn list, Config.AntiCheat.knownModels - and recognise
--- those when they come back. Anything else is printed as a bare hash.
 local modelNames = {}
 
 local function learnModels(list, field)
@@ -215,8 +164,6 @@ learnModels(settings.blacklistedPeds)
 learnModels(settings.knownModels)
 learnModels(Config.VehicleList, 'model')
 
---- A model as a readable string: its name when known, and always the unsigned
---- hash, which is the form model lookup sites index by.
 local function modelLabel(model)
     if type(model) ~= 'number' then return tostring(model) end
 
@@ -249,8 +196,6 @@ AddEventHandler('entityCreating', function(entity)
 
     local owner = ownerOf(entity)
 
-    -- Staff are allowed to place blacklisted models on purpose, otherwise an
-    -- admin cannot clean up after a cheater with the same prop.
     if owner and isExempt(owner) then return end
 
     CancelEvent()
@@ -261,8 +206,6 @@ AddEventHandler('entityCreating', function(entity)
         return
     end
 
-    -- The exact line asked for in the brief. It goes to the F8 console of
-    -- every staff member at alertRank or above.
     local message = ('potential cheater spawning props: user ID = %s, prop ID: %s'):format(owner, entity)
 
     for _, member in ipairs(TSIV.GetStaff(settings.alertRank)) do
@@ -295,9 +238,6 @@ AddEventHandler('entityCreated', function(entity)
 
     local netId = NetworkGetNetworkIdFromEntity(entity)
 
-    -- --------------------------------------------------------------
-    -- Optional spawn logging into staff F8 consoles
-    -- --------------------------------------------------------------
     local shouldLog =
         (kind == 'props'    and TSIV.PropLoggingEnabled())
         or (kind == 'vehicles' and settings.logVehicleSpawns)
@@ -305,15 +245,13 @@ AddEventHandler('entityCreated', function(entity)
 
     if shouldLog then
         local singular = kind:sub(1, #kind - 1)
-        local line = ('%s spawned: user ID = %s (%s), prop ID = %s, netId = %s, model = %s'):format(
-            singular, owner, TSIV.GetName(owner), entity, netId, modelLabel(model))
+        local line = ('%s spawned: user ID = %s (%s), prop ID = %s, model = %s'):format(
+            singular, owner, TSIV.GetName(owner), entity, modelLabel(model))
 
         for _, member in ipairs(TSIV.GetStaff(settings.propLogRank)) do
             TSIV.Console(member.source, line)
         end
 
-        -- Also record it, so the identifier lookup can answer "what did this
-        -- player spawn earlier?" rather than only showing it live in F8.
         if settings.logSpawnsToStore then
             TSIV.Logs.Write({
                 category = 'props',
@@ -334,9 +272,6 @@ AddEventHandler('entityCreated', function(entity)
         end
     end
 
-    -- --------------------------------------------------------------
-    -- Spam windows
-    -- --------------------------------------------------------------
     if kind == 'props' then
         checkSpam(owner, 'props', settings.propSpam, entity, modelLabel(model))
     elseif kind == 'vehicles' then
@@ -351,10 +286,6 @@ AddEventHandler('entityRemoved', function(entity)
         owned[entity] = nil
     end
 end)
-
--- ---------------------------------------------------------------------------
--- Explosions
--- ---------------------------------------------------------------------------
 
 AddEventHandler('explosionEvent', function(sender, ev)
     if not settings.enabled or not settings.explosions.enabled then return end
@@ -387,12 +318,6 @@ AddEventHandler('explosionEvent', function(sender, ev)
     end
 end)
 
--- ---------------------------------------------------------------------------
--- Client reports
--- ---------------------------------------------------------------------------
--- client/anticheat.lua sends these. They are hints from a machine the player
--- controls, so they are alerts only - never an automatic ban.
-
 RegisterNetEvent(TSIV.Events.report, function(kind, detail)
     local src = source
     if not settings.enabled or not settings.client.enabled then return end
@@ -402,8 +327,6 @@ RegisterNetEvent(TSIV.Events.report, function(kind, detail)
     kind = TSIV.SafeString(kind, 32)
     detail = TSIV.SafeString(detail, 160)
 
-    -- One report of each kind per player per 30 seconds, so a stuck check does
-    -- not flood the staff console.
     windows[src] = windows[src] or {}
     local key = 'report:' .. kind
     local window = windowFor(src, key, 30.0)
@@ -412,12 +335,12 @@ RegisterNetEvent(TSIV.Events.report, function(kind, detail)
 
     TSIV.StaffBroadcast(settings.alertRank,
         ('%s^3[client check]^7 %s ^3(id %s)^7 - %s'):format(Config.Prefix, TSIV.GetName(src), src, kind), {
-            ('player     : %s'):format(TSIV.GetName(src)),
-            ('user ID    : %s'):format(src),
-            ('steam ID   : %s'):format(TSIV.GetSteamId(src)),
-            ('check      : %s'):format(kind),
-            ('detail     : %s'):format(detail),
-            'note       : client side check, verify before acting on it',
+            ('player   : %s'):format(TSIV.GetName(src)),
+            ('user ID  : %s'):format(src),
+            ('steam ID : %s'):format(TSIV.GetSteamId(src)),
+            ('check    : %s'):format(kind),
+            ('detail   : %s'):format(detail),
+            'note      : client side check, verify before acting on it!',
         })
 
     TSIV.Logs.Write({
@@ -428,10 +351,6 @@ RegisterNetEvent(TSIV.Events.report, function(kind, detail)
         data = { userId = src, steam = TSIV.GetSteamId(src), check = kind, detail = detail },
     })
 end)
-
--- ---------------------------------------------------------------------------
--- Disconnect
--- ---------------------------------------------------------------------------
 
 AddEventHandler('playerDropped', function()
     local src = source
@@ -449,24 +368,20 @@ AddEventHandler('playerDropped', function()
     burst[src] = nil
 end)
 
--- ---------------------------------------------------------------------------
--- Menu hook
--- ---------------------------------------------------------------------------
-
 TSIV.RegisterRequest('anticheat.status', 'staff.alerts', function()
     local lines = {
-        ('enabled           : %s'):format(settings.enabled and 'yes' or 'no'),
-        ('prop logging      : %s'):format(TSIV.PropLoggingEnabled() and 'on' or 'off'),
-        ('prop spam         : %s, >%d in %.1fs -> %s'):format(
+        ('enabled     : %s'):format(settings.enabled and 'yes' or 'no'),
+        ('prop logging: %s'):format(TSIV.PropLoggingEnabled() and 'on' or 'off'),
+        ('prop spam   : %s, >%d in %.1fs -> %s'):format(
             settings.propSpam.enabled and 'on' or 'off',
             settings.propSpam.threshold, settings.propSpam.window, settings.propSpam.action),
-        ('vehicle spam      : %s, >%d in %.1fs -> %s'):format(
+        ('vehicle spam: %s, >%d in %.1fs -> %s'):format(
             settings.vehicleSpam.enabled and 'on' or 'off',
             settings.vehicleSpam.threshold, settings.vehicleSpam.window, settings.vehicleSpam.action),
-        ('ped spam          : %s, >%d in %.1fs -> %s'):format(
+        ('ped spam    : %s, >%d in %.1fs -> %s'):format(
             settings.pedSpam.enabled and 'on' or 'off',
             settings.pedSpam.threshold, settings.pedSpam.window, settings.pedSpam.action),
-        ('explosions        : %s, >%d in %.1fs -> %s'):format(
+        ('explosions  : %s, >%d in %.1fs -> %s'):format(
             settings.explosions.enabled and 'on' or 'off',
             settings.explosions.threshold, settings.explosions.window, settings.explosions.action),
         ('blacklisted props : %d'):format(#settings.blacklistedProps),
@@ -475,5 +390,5 @@ TSIV.RegisterRequest('anticheat.status', 'staff.alerts', function()
         ('alerts go to      : %s and above'):format(TSIV.RankLabel(settings.alertRank)),
         ('exempt from       : %s and above'):format(TSIV.RankLabel(settings.exemptRank)),
     }
-    return { title = 'tsivtools anticheat status', lines = lines }
+    return { title = 'TsivTools anticheat status', lines = lines }
 end)

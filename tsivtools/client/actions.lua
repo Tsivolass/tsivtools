@@ -1,31 +1,14 @@
---[[
-    tsivtools - client actions
 
-    Two halves:
-
-      1. The request helper, which lets the menu ask the server for data and
-         wait for the answer.
-      2. The fixed list of commands the server may ask this client to run. The
-         server sends a NAME from this table, never code, so there is no path
-         from a server event to arbitrary execution on a player's machine.
-]]
 
 TSIV.Actions = {}
 
 local pendingRequests = {}
 local nextRequestId = 0
 
--- ---------------------------------------------------------------------------
--- Talking to the server
--- ---------------------------------------------------------------------------
-
---- Fire and forget.
 function TSIV.Action(name, payload)
     TriggerServerEvent(TSIV.Events.action, name, payload or {})
 end
 
---- Ask the server for something and block this coroutine until it answers.
---- Returns nil on timeout or when the server refused.
 function TSIV.Request(name, payload, timeout)
     nextRequestId = nextRequestId + 1
     local requestId = nextRequestId
@@ -44,7 +27,7 @@ function TSIV.Request(name, payload, timeout)
     pendingRequests[requestId] = nil
 
     if not entry.done then
-        TSIV.Notify('The server did not answer in time.', 'error')
+        TSIV.Notify('The server did not answer in time !', 'error')
         return nil
     end
 
@@ -58,19 +41,14 @@ RegisterNetEvent(TSIV.Events.response, function(requestId, result)
     entry.done = true
 end)
 
---- Show a server-built block of lines in F8 and say so on screen.
 function TSIV.ShowBlock(block, emptyMessage)
     if not block then
-        TSIV.Notify(emptyMessage or 'Nothing came back.', 'error')
+        TSIV.Notify(emptyMessage or 'Nothing came back !', 'error')
         return
     end
     TSIV.PrintBlock(block.title or 'tsivtools', block.lines or {})
-    TSIV.Notify('Printed to your F8 console.', 'success')
+    TSIV.Notify('Printed results to console !', 'success')
 end
-
--- ---------------------------------------------------------------------------
--- Local state
--- ---------------------------------------------------------------------------
 
 TSIV.State = {
     god = false,
@@ -79,10 +57,6 @@ TSIV.State = {
     spectating = nil,
     frozen = false,
 }
-
--- ---------------------------------------------------------------------------
--- Models
--- ---------------------------------------------------------------------------
 
 local function requestModel(model)
     local hash = type(model) == 'number' and model or GetHashKey(model)
@@ -101,12 +75,6 @@ local function requestModel(model)
     return hash
 end
 
--- ---------------------------------------------------------------------------
--- Entity helpers
--- ---------------------------------------------------------------------------
-
---- The entity the player is aiming at, or the closest one in front of them.
---- Used by "delete the prop I am looking at".
 function TSIV.RaycastEntity(distance)
     local ped = PlayerPedId()
     local from = GetGameplayCamCoord()
@@ -129,7 +97,6 @@ function TSIV.RaycastEntity(distance)
     return nil
 end
 
---- Closest object to the player, ignoring anything further than maxDistance.
 function TSIV.ClosestObject(maxDistance)
     local origin = GetEntityCoords(PlayerPedId())
     local closest, closestDistance = nil, maxDistance or 25.0
@@ -150,8 +117,6 @@ function TSIV.ClosestObject(maxDistance)
     return closest
 end
 
---- Hand an entity to the server by network id. The server is what actually
---- deletes it, after checking the caller is near it.
 function TSIV.DeleteEntityViaServer(entity, kind)
     if not entity or not DoesEntityExist(entity) then
         TSIV.Notify('Nothing there to delete.', 'error')
@@ -159,12 +124,9 @@ function TSIV.DeleteEntityViaServer(entity, kind)
     end
 
     if not NetworkGetEntityIsNetworked(entity) then
-        -- A purely local entity has no network id, so the server cannot see
-        -- it. Those are map objects or client-side props; deleting them here
-        -- only affects this player, which is still what they asked for.
         SetEntityAsMissionEntity(entity, true, true)
         DeleteEntity(entity)
-        TSIV.Notify('Deleted a local entity (it was not networked).', 'success')
+        TSIV.Notify('Deleted a local entity !', 'success')
         return
     end
 
@@ -173,10 +135,6 @@ function TSIV.DeleteEntityViaServer(entity, kind)
         kind = kind or 'props',
     })
 end
-
--- ---------------------------------------------------------------------------
--- Noclip
--- ---------------------------------------------------------------------------
 
 local noclipSpeed = 1.0
 
@@ -207,7 +165,6 @@ local function noclipThread()
 
             local move = vector3(0.0, 0.0, 0.0)
 
-            -- W / S / A / D, shift to go faster, control to go slower.
             if IsControlPressed(0, 32) then move = move + forward end
             if IsControlPressed(0, 33) then move = move - forward end
             if IsControlPressed(0, 34) then
@@ -216,8 +173,8 @@ local function noclipThread()
             if IsControlPressed(0, 35) then
                 move = move + vector3(forward.y, -forward.x, 0.0)
             end
-            if IsControlPressed(0, 44) then move = move + vector3(0.0, 0.0, 1.0) end  -- Q
-            if IsControlPressed(0, 38) then move = move - vector3(0.0, 0.0, 1.0) end  -- E
+            if IsControlPressed(0, 44) then move = move + vector3(0.0, 0.0, 1.0) end
+            if IsControlPressed(0, 38) then move = move - vector3(0.0, 0.0, 1.0) end
 
             local speed = noclipSpeed
             if IsControlPressed(0, 21) then speed = speed * 4.0 end
@@ -243,7 +200,6 @@ local function noclipThread()
         SetEntityInvincible(ped, TSIV.State.god)
         SetEntityVisible(ped, not TSIV.State.invisible, false)
 
-        -- Drop back to the ground rather than leaving the player in the air.
         local coords = GetEntityCoords(ped)
         local found, ground = GetGroundZFor_3dCoord(coords.x, coords.y, coords.z, false)
         if found then
@@ -262,10 +218,6 @@ function TSIV.SetNoclipSpeed(speed)
     noclipSpeed = speed
 end
 
--- ---------------------------------------------------------------------------
--- God mode and invisibility
--- ---------------------------------------------------------------------------
-
 function TSIV.ToggleGod(state)
     TSIV.State.god = state
     SetEntityInvincible(PlayerPedId(), state)
@@ -279,8 +231,6 @@ function TSIV.ToggleInvisible(state)
     TSIV.Action('self.state', { key = 'self.invisible', state = state })
 end
 
--- God mode has to be re-applied after a respawn, otherwise it silently stops
--- working the first time the player dies.
 CreateThread(function()
     while true do
         Wait(2000)
@@ -294,10 +244,6 @@ CreateThread(function()
         end
     end
 end)
-
--- ---------------------------------------------------------------------------
--- Spectating
--- ---------------------------------------------------------------------------
 
 local spectateReturn = nil
 
@@ -317,7 +263,7 @@ local function stopSpectating()
         spectateReturn = nil
     end
 
-    TSIV.Notify('Stopped spectating.', 'info')
+    TSIV.Notify('Stopped spectating !', 'info')
 end
 
 TSIV.StopSpectating = stopSpectating
@@ -325,7 +271,7 @@ TSIV.StopSpectating = stopSpectating
 local function startSpectating(serverId, name)
     local playerIndex = GetPlayerFromServerId(serverId)
     if playerIndex == -1 then
-        TSIV.Notify('That player is not in range of your client yet. Teleport nearer first.', 'error')
+        TSIV.Notify('Too far away from player. Teleport nearer first !', 'error')
         return
     end
 
@@ -345,18 +291,17 @@ local function startSpectating(serverId, name)
     NetworkSetInSpectatorMode(true, targetPed)
     TSIV.State.spectating = serverId
 
-    TSIV.Notify(('Spectating %s. Press Backspace in the menu, or use Stop spectating, to come back.')
+    TSIV.Notify(('Spectating %s. Press backspace or use Stop Spectating from tsivtools menu to go back !')
         :format(name or serverId), 'info')
 end
 
--- Keep the camera on the target as they move around the map.
 CreateThread(function()
     while true do
         Wait(1000)
         if TSIV.State.spectating then
             local playerIndex = GetPlayerFromServerId(TSIV.State.spectating)
             if playerIndex == -1 then
-                TSIV.Notify('Lost the player you were spectating.', 'warn')
+                TSIV.Notify('Player too far away !', 'warn')
                 stopSpectating()
             else
                 local targetPed = GetPlayerPed(playerIndex)
@@ -367,12 +312,6 @@ CreateThread(function()
     end
 end)
 
--- ---------------------------------------------------------------------------
--- Teleporting
--- ---------------------------------------------------------------------------
-
---- Teleport and wait for the collision around the destination to stream in, so
---- the player does not fall through the map on arrival.
 function TSIV.TeleportTo(x, y, z)
     local ped = PlayerPedId()
     local entity = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
@@ -390,7 +329,6 @@ function TSIV.TeleportTo(x, y, z)
         waited = waited + 50
     end
 
-    -- Drop to the ground if the z we were given is in the air.
     local found, ground = GetGroundZFor_3dCoord(x, y, z + 10.0, false)
     if found and math.abs(ground - z) < 50.0 then
         SetEntityCoordsNoOffset(entity, x, y, ground + 1.0, false, false, false)
@@ -403,13 +341,12 @@ end
 function TSIV.TeleportToMarker()
     local waypoint = GetFirstBlipInfoId(8)
     if not DoesBlipExist(waypoint) then
-        TSIV.Notify('You have not set a waypoint.', 'error')
+        TSIV.Notify('You have not set a waypoint!', 'error')
         return
     end
 
     local coords = GetBlipInfoIdCoord(waypoint)
 
-    -- The waypoint blip has no height, so probe upwards for the ground.
     local ped = PlayerPedId()
     local entity = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
 
@@ -434,14 +371,10 @@ function TSIV.TeleportToMarker()
     TSIV.Notify('Teleported to your waypoint.', 'success')
 end
 
--- ---------------------------------------------------------------------------
--- Vehicles
--- ---------------------------------------------------------------------------
-
 local function spawnVehicle(model, plate)
     local hash = requestModel(model)
     if not hash then
-        TSIV.Notify(('"%s" is not a vehicle model on this server.'):format(model), 'error')
+        TSIV.Notify(('"%s" is incorrect vehicle model!'):format(model), 'error')
         return
     end
 
@@ -461,7 +394,7 @@ local function spawnVehicle(model, plate)
     SetPedIntoVehicle(ped, vehicle, -1)
     SetModelAsNoLongerNeeded(hash)
 
-    TSIV.Notify(('Spawned a %s.'):format(model), 'success')
+    TSIV.Notify(('vehicle named %s was spawned !'):format(model), 'success')
 end
 
 local function currentVehicle()
@@ -469,17 +402,11 @@ local function currentVehicle()
     if IsPedInAnyVehicle(ped, false) then
         return GetVehiclePedIsIn(ped, false)
     end
-    -- Fall back to the closest vehicle, so repair works while standing next to
-    -- one rather than only while sitting in it.
     local coords = GetEntityCoords(ped)
     local vehicle = GetClosestVehicle(coords.x, coords.y, coords.z, 6.0, 0, 71)
     if vehicle and vehicle ~= 0 then return vehicle end
     return nil
 end
-
--- ---------------------------------------------------------------------------
--- Server driven commands
--- ---------------------------------------------------------------------------
 
 local commands = {}
 
@@ -499,10 +426,8 @@ commands.revive = function()
     ClearPedBloodDamage(ped)
     ClearPedTasksImmediately(ped)
 
-    -- Let a framework's own revive run too, if one is listening. Harmless when
-    -- nothing is.
     TriggerEvent('tsivtools:revived')
-    TSIV.Notify('You were revived by staff.', 'success')
+    TSIV.Notify('You were revived by staff !', 'success')
 end
 
 commands.heal = function()
@@ -510,13 +435,13 @@ commands.heal = function()
     SetEntityHealth(ped, GetEntityMaxHealth(ped))
     SetPedArmour(ped, 100)
     ClearPedBloodDamage(ped)
-    TSIV.Notify('You were healed by staff.', 'success')
+    TSIV.Notify('You were healed by staff !', 'success')
 end
 
 commands.slay = function()
     local ped = PlayerPedId()
     SetEntityHealth(ped, 0)
-    TSIV.Notify('You were slain by staff.', 'error')
+    TSIV.Notify('You were slain by staff !', 'error')
 end
 
 commands.freeze = function(payload)
@@ -530,7 +455,7 @@ end
 
 commands.warn = function(payload)
     TSIV.Chat(('^1[WARNING]^7 from ^3%s^7: %s'):format(payload.by or 'staff', payload.reason or ''))
-    TSIV.Notify('You have been warned by staff. Read the chat.', 'warn')
+    TSIV.Notify('You have been warned by staff ! Please read chat !', 'warn')
     PlaySoundFrontend(-1, 'Event_Start_Text', 'GTAO_FM_Events_Soundset', true)
 end
 
@@ -549,7 +474,7 @@ end
 commands.repairVehicle = function()
     local vehicle = currentVehicle()
     if not vehicle then
-        TSIV.Notify('No vehicle nearby.', 'error')
+        TSIV.Notify('No vehicle nearby !', 'error')
         return
     end
     SetVehicleFixed(vehicle)
@@ -561,12 +486,10 @@ end
 commands.refuelVehicle = function()
     local vehicle = currentVehicle()
     if not vehicle then
-        TSIV.Notify('No vehicle nearby.', 'error')
+        TSIV.Notify('No vehicle nearby !', 'error')
         return
     end
     SetVehicleFuelLevel(vehicle, 100.0)
-    -- Most fuel scripts read a statebag rather than the native, so set that
-    -- too. Harmless when nothing is listening.
     if NetworkGetEntityIsNetworked(vehicle) then
         Entity(vehicle).state:set('fuel', 100.0, true)
     end
@@ -575,7 +498,7 @@ end
 commands.flipVehicle = function()
     local vehicle = currentVehicle()
     if not vehicle then
-        TSIV.Notify('No vehicle nearby.', 'error')
+        TSIV.Notify('No vehicle nearby !', 'error')
         return
     end
     local roll = GetEntityRoll(vehicle)
@@ -593,7 +516,7 @@ commands.deleteVehicle = function()
         entity = currentVehicle()
     end
     if not entity then
-        TSIV.Notify('No vehicle in front of you.', 'error')
+        TSIV.Notify('No vehicle found !', 'error')
         return
     end
     if IsPedInAnyVehicle(PlayerPedId(), false) and GetVehiclePedIsIn(PlayerPedId(), false) == entity then
