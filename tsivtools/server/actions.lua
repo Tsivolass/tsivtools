@@ -1,5 +1,3 @@
-
-
 local Logs = TSIV.Logs
 
 local function settings()
@@ -18,7 +16,6 @@ function TSIV.SetSetting(key, value)
     TSIV.Storage.Flush('settings')
 end
 
---- Used by the anti-cheat and by the permission handshake.
 function TSIV.PropLoggingEnabled()
     return TSIV.Setting('logPropSpawns', Config.AntiCheat.logPropSpawns) and true or false
 end
@@ -217,7 +214,6 @@ TSIV.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
         return
     end
 
-    -- you can hand out your own rank but nothing above it
     if rank ~= 'none' and src ~= 0 and TSIV.RankLevel(rank) > TSIV.RankLevel(TSIV.GetRank(src)) then
         TSIV.Notify(src, ('%s is above your rank !'):format(TSIV.RankLabel(rank)), 'error')
         return
@@ -476,15 +472,10 @@ TSIV.RegisterAction('prop.toggleproplog', 'prop.toggleproplog', function(src, pa
     TSIV.StaffBroadcast(Config.AntiCheat.propLogRank, ('%s%s turned prop spawn logging %s'):format(
         TSIV.GetName(src), Config.Prefix, state and 'ON' or 'OFF'))
 
-    -- Everyone who can see the toggle needs their menu row updating.
     for _, player in ipairs(GetPlayers()) do
         TSIV.SendPermissions(tonumber(player))
     end
 end)
-
--- ---------------------------------------------------------------------------
--- Staff
--- ---------------------------------------------------------------------------
 
 TSIV.RegisterRequest('staff.online', 'staff.online', function(src)
     local staff = TSIV.GetStaff()

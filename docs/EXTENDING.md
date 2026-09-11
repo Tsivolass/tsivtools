@@ -33,7 +33,7 @@ Three things to keep in your head:
 
 Four edits. Follow them in this order.
 
-### 1. Add a permission key
+### 1. Add a permission key and a feature switch
 
 `config.lua`, in `Config.Permissions`:
 
@@ -43,6 +43,13 @@ Four edits. Follow them in this order.
 
 Skipping this step does not make the option free, it makes it owner-only. An
 unknown key is deliberately treated as the highest rank.
+
+Then add the matching switch in `Config.Features`, so the option can be turned
+off like every other one:
+
+```lua
+['self.settime'] = true,
+```
 
 ### 2. Register the action on the server
 
@@ -371,12 +378,9 @@ Match what is already there:
 
 - Four spaces, no tabs.
 - `local` everything that is not deliberately shared.
-- **Comments are sparse and short.** One line, lower case, only where the code
-  genuinely needs explaining. No file header blocks, no `-- ------` separator
-  bars, no `---` doc comments above every function. If the code says it, do not
-  write it again.
-- `config.lua` carries most of the comments, because that is the file people
-  edit. Everything else is close to comment free.
+- **Do not write comments.** The code carries no comments except a handful in
+  `config.lua`, and it stays that way. No file header blocks, no `-- ------`
+  separator bars, no `---` doc comments. Name things well instead.
 - Messages shown to players are short and end in `!` rather than a full stop:
   `'Player isnt online !'`, `'No vehicle nearby !'`. A `:)` is fine.
 - No `while true do ... end` without a `Wait()`. It will hang the client.

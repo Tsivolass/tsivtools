@@ -1,5 +1,3 @@
-
-
 TSIV = TSIV or {}
 
 TSIV.resource = GetCurrentResourceName()
@@ -42,7 +40,12 @@ function TSIV.PermissionLevel(key)
     return TSIV.RankLevel(required)
 end
 
+function TSIV.FeatureEnabled(key)
+    return Config.Features[key] ~= false
+end
+
 function TSIV.HasPermission(rankName, key)
+    if not TSIV.FeatureEnabled(key) then return false end
     local needed = TSIV.PermissionLevel(key)
     if needed == nil then return false end
     return TSIV.RankLevel(rankName) >= needed

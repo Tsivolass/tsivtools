@@ -1,4 +1,3 @@
-
 function TSIV.Print(message)
     print(Config.ConsolePrefix .. tostring(message))
 end

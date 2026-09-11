@@ -1,4 +1,3 @@
-
 local permissions = nil
 local root = nil
 local selected = nil
@@ -21,10 +20,25 @@ local function selectedLabel()
     return ('[%d] %s'):format(selected.id, selected.name)
 end
 
-local function requireSelection()
-    if selected then return true end
-    TSIV.Notify('select a player first !!', 'error')
-    return false
+local function withTarget(fn)
+    if selected then
+        fn(selected.id)
+        return
+    end
+
+    CreateThread(function()
+        local id = TSIV.InputNumber('User ID', '', 6)
+        if not id then return end
+
+        id = math.floor(id)
+        if id < 1 then
+            TSIV.Notify('Thats not a valid User ID !', 'error')
+            return
+        end
+
+        selected = { id = id, name = ('id %d'):format(id) }
+        fn(id)
+    end)
 end
 
 local function choosePlayer(title, onPick)
@@ -185,10 +199,11 @@ local function buildPlayers(menu)
     local function targeted(label, description, permission, action, payload)
         if not can(permission) then return end
         menu:Button(label, description, function()
-            if not requireSelection() then return end
-            local body = { target = selected.id }
-            for key, value in pairs(payload or {}) do body[key] = value end
-            TSIV.Action(action, body)
+            withTarget(function(target)
+                local body = { target = target }
+                for key, value in pairs(payload or {}) do body[key] = value end
+                TSIV.Action(action, body)
+            end)
         end)
     end
 
@@ -200,8 +215,9 @@ local function buildPlayers(menu)
 
     if can('player.spectate') then
         menu:Button('Spectate', 'Spectate selected player! Use backspace or stop spectating to stop spectating', function()
-            if not requireSelection() then return end
-            TSIV.Action('player.spectate', { target = selected.id })
+            withTarget(function(target)
+                TSIV.Action('player.spectate', { target = target })
+            end)
         end)
         menu:Button('Stop spectating', 'Stop spectating a player !', function()
             TSIV.StopSpectating()
@@ -211,55 +227,61 @@ local function buildPlayers(menu)
 
     if can('player.freeze') then
         menu:Button('Freeze', 'Lock the player in place !', function()
-            if not requireSelection() then return end
-            TSIV.Action('player.freeze', { target = selected.id, state = true })
+            withTarget(function(target)
+                TSIV.Action('player.freeze', { target = target, state = true })
+            end)
         end)
         menu:Button('Unfreeze', 'remove freeze from the player !', function()
-            if not requireSelection() then return end
-            TSIV.Action('player.freeze', { target = selected.id, state = false })
+            withTarget(function(target)
+                TSIV.Action('player.freeze', { target = target, state = false })
+            end)
         end)
     end
 
     if can('player.warn') then
         menu:Button('Warn', 'Send a warning to a player !', function()
-            if not requireSelection() then return end
-            CreateThread(function()
-                local reason = TSIV.Input('Warning reason :', '', 120)
-                if not reason then return end
-                TSIV.Action('player.warn', { target = selected.id, reason = reason })
+            withTarget(function(target)
+                CreateThread(function()
+                    local reason = TSIV.Input('Warning reason :', '', 120)
+                    if not reason then return end
+                    TSIV.Action('player.warn', { target = target, reason = reason })
+                end)
             end)
         end)
     end
 
     if can('player.kick') then
         menu:Button('Kick', 'Kick the player from the server !', function()
-            if not requireSelection() then return end
-            CreateThread(function()
-                local reason = TSIV.Input('Kick reason', '', 120)
-                if not reason then return end
-                TSIV.Action('player.kick', { target = selected.id, reason = reason })
+            withTarget(function(target)
+                CreateThread(function()
+                    local reason = TSIV.Input('Kick reason', '', 120)
+                    if not reason then return end
+                    TSIV.Action('player.kick', { target = target, reason = reason })
+                end)
             end)
         end)
     end
 
     if can('player.ban') then
         menu:Button('Ban', 'duration is minutes, 0 for permanent !', function()
-            if not requireSelection() then return end
-            CreateThread(function()
-                local minutes = TSIV.InputNumber('Ban length in minutes (0 = permanent)', '0', 8)
-                if minutes == nil then return end
-                local reason = TSIV.Input('Ban reason', '', 150)
-                if not reason then return end
-                TSIV.Action('player.ban', { target = selected.id, minutes = minutes, reason = reason })
+            withTarget(function(target)
+                CreateThread(function()
+                    local minutes = TSIV.InputNumber('Ban length in minutes (0 = permanent)', '0', 8)
+                    if minutes == nil then return end
+                    local reason = TSIV.Input('Ban reason', '', 150)
+                    if not reason then return end
+                    TSIV.Action('player.ban', { target = target, minutes = minutes, reason = reason })
+                end)
             end)
         end)
     end
 
     if can('player.identifiers') then
         menu:Button('Identifiers', 'Print the players identifiers in the console !', function()
-            if not requireSelection() then return end
-            CreateThread(function()
-                TSIV.ShowBlock(TSIV.Request('player.identifiers', { target = selected.id }))
+            withTarget(function(target)
+                CreateThread(function()
+                    TSIV.ShowBlock(TSIV.Request('player.identifiers', { target = target }))
+                end)
             end)
         end)
     end
@@ -274,8 +296,9 @@ local function buildPlayers(menu)
         menu:List('Set staff group',
             'Use arrowkeys to select a group, press enter to set that group to the user !',
             values, function(value)
-                if not requireSelection() then return end
-                TSIV.Action('player.setrank', { target = selected.id, rank = value })
+                withTarget(function(target)
+                    TSIV.Action('player.setrank', { target = target, rank = value })
+                end)
             end)
     end
 
@@ -544,14 +567,12 @@ local function buildStaff(menu)
         end)
 
         menu:Button('Look up the selected player', 'Get Identifiers from the selected online player !', function()
-            if not selected then
-                TSIV.Notify('select a player in the players menu first !', 'error')
-                return
-            end
-            CreateThread(function()
-                local details = TSIV.Request('player.identifiers', { target = selected.id })
-                local query = details and details.identifier or selected.name
-                TSIV.ShowBlock(TSIV.Request('logs.lookup', { query = query, limit = 40 }))
+            withTarget(function(target)
+                CreateThread(function()
+                    local details = TSIV.Request('player.identifiers', { target = target })
+                    local query = details and details.identifier or tostring(target)
+                    TSIV.ShowBlock(TSIV.Request('logs.lookup', { query = query, limit = 40 }))
+                end)
             end)
         end)
 

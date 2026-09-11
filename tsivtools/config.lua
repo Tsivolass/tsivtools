@@ -1,5 +1,3 @@
-
-
 Config = {}
 
 Config.Prefix = '^5[tsivtools]^7 '
@@ -12,12 +10,10 @@ Config.MenuKey = 'INSERT'
 
 Config.MenuPosition = 'right'
 
--- Menu accent colour {r, g, b}. Used for the header bar and the selection bar.
 Config.MenuColour = { 61, 0, 217 }
 
 Config.MenuMaxVisible = 10
 
--- Show a small "TSIVTOOLS" watermark while the menu is open.
 Config.MenuWatermark = true
 
 Config.MenuSounds = true
@@ -48,11 +44,64 @@ Config.FrameworkGroupMap = {
     ['owner']      = 'owner',
 }
 
+Config.Features = {
+
+    ['menu.open']          = true,
+
+    ['self.godmode']       = true,
+    ['self.invisible']     = true,
+    ['self.noclip']        = true,
+    ['self.heal']          = true,
+    ['self.armour']        = true,
+    ['self.cleararea']     = true,
+    ['self.tpmarker']      = true,
+    ['self.tpcoords']      = true,
+    ['self.tpsaved']       = true,
+
+    ['player.list']        = true,
+    ['player.goto']        = true,
+    ['player.bring']       = true,
+    ['player.spectate']    = true,
+    ['player.revive']      = true,
+    ['player.heal']        = true,
+    ['player.slay']        = true,
+    ['player.freeze']      = true,
+    ['player.kick']        = true,
+    ['player.ban']         = true,
+    ['player.unban']       = true,
+    ['player.warn']        = true,
+    ['player.setrank']     = true,
+    ['player.identifiers'] = true,
+
+    ['vehicle.spawn']      = true,
+    ['vehicle.delete']     = true,
+    ['vehicle.repair']     = true,
+    ['vehicle.refuel']     = true,
+    ['vehicle.flip']       = true,
+    ['vehicle.dvarea']     = true,
+    ['vehicle.dvall']      = true,
+
+    ['prop.deletenearest'] = true,
+    ['prop.deletearea']    = true,
+    ['prop.deleteall']     = true,
+    ['prop.deleteplayer']  = true,
+    ['prop.toggleproplog'] = true,
+
+    ['garage.lookup']      = true,
+    ['garage.give']        = true,
+    ['garage.remove']      = true,
+
+    ['staff.online']       = true,
+    ['staff.chat']         = true,
+    ['staff.announce']     = true,
+    ['staff.logs']         = true,
+    ['staff.alerts']       = true,
+    ['staff.serverinfo']   = true,
+}
+
 Config.Permissions = {
-    -- menu itself
     ['menu.open']              = 'mod',
 
-    -- self
     ['self.godmode']           = 'admin',
     ['self.invisible']         = 'admin',
     ['self.noclip']            = 'mod',
@@ -63,7 +112,6 @@ Config.Permissions = {
     ['self.tpcoords']          = 'admin',
     ['self.tpsaved']           = 'mod',
 
-    -- players
     ['player.list']            = 'mod',
     ['player.goto']            = 'mod',
     ['player.bring']           = 'mod',
@@ -79,7 +127,6 @@ Config.Permissions = {
     ['player.setrank']         = 'owner',
     ['player.identifiers']     = 'admin',
 
-    -- vehicles
     ['vehicle.spawn']          = 'admin',
     ['vehicle.delete']         = 'mod',
     ['vehicle.repair']         = 'mod',
@@ -88,19 +135,16 @@ Config.Permissions = {
     ['vehicle.dvarea']         = 'admin',
     ['vehicle.dvall']          = 'superadmin',
 
-    -- props / entities
     ['prop.deletenearest']     = 'mod',
     ['prop.deletearea']        = 'admin',
     ['prop.deleteall']         = 'superadmin',
     ['prop.deleteplayer']      = 'admin',
     ['prop.toggleproplog']     = 'admin',
 
-    -- garage
     ['garage.lookup']          = 'mod',
     ['garage.give']            = 'superadmin',
     ['garage.remove']          = 'superadmin',
 
-    -- staff / logs
     ['staff.online']           = 'mod',
     ['staff.chat']             = 'mod',
     ['staff.announce']         = 'admin',
@@ -145,9 +189,6 @@ Config.Garage = {
     plateColumn   = 'plate',
     propsColumn   = 'vehicle',
     extraColumns  = {
-        -- ['type']    = 'car',
-        -- ['job']     = nil,
-        -- ['stored']  = 1,
     },
 
     platePrefix = 'TSIV',
@@ -156,7 +197,6 @@ Config.Garage = {
 
 Config.AntiCheat = {
     enabled = true,
-
 
     logPropSpawns = false, -- NOT RECOMMENDED FOR COMMERCIAL SERVERS !
     propLogRank   = 'admin',
@@ -184,8 +224,8 @@ Config.AntiCheat = {
         enabled   = true,
         threshold = 10,
         window    = 3.0,
-        action    = 'alert',           -- 'alert' | 'kick' | 'ban'
-        banLength = 0,                 -- minutes, 0 = permanent
+        action    = 'alert',
+        banLength = 0,
         reason    = 'Prop spawn flood',
         cleanup   = true,
     },
@@ -247,8 +287,8 @@ Config.AntiCheat = {
         'a_c_killerwhale',
     },
 
-    blacklistAction    = 'log',        -- 'log' | 'kick' | 'ban'
-    blacklistBanLength = 0,            -- minutes, 0 = permanent
+    blacklistAction    = 'log',
+    blacklistBanLength = 0,
     blacklistReason    = 'Spawning a blacklisted model',
 
     explosions = {
@@ -257,7 +297,7 @@ Config.AntiCheat = {
         blocked   = { 2, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41 },
         threshold = 6,
         window    = 6.0,
-        action    = 'alert',           -- 'alert' | 'kick' | 'ban'
+        action    = 'alert',
         banLength = 0,
         reason    = 'Explosion spam',
     },
@@ -292,7 +332,6 @@ Config.Logging = {
     -- doesnt work for mysql :)
     maxEntries = 5000,
 
-    -- Categories that get written. Set one to false to stop recording it.
     categories = {
         staff     = true,
         anticheat = true,

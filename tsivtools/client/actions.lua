@@ -1,5 +1,3 @@
-
-
 TSIV.Actions = {}
 
 local pendingRequests = {}
@@ -529,8 +527,6 @@ end
 RegisterNetEvent(TSIV.Events.run, function(command, payload)
     local handler = commands[command]
     if not handler then
-        -- An unknown command means the server is a version ahead of the client,
-        -- or something is trying to drive this client that should not be.
         TSIV.Print(('ignored an unknown command from the server: %s'):format(tostring(command)))
         return
     end

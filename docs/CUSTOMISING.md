@@ -83,6 +83,35 @@ Enter without arrowing cannot strip somebody's rank by accident.
 
 ---
 
+## Turning features off
+
+`Config.Features` has one switch per menu option. Set one to `false` and that
+option is gone: it is not built into the menu, it is not sent to any client,
+and the server refuses it even if something asks for it directly.
+
+```lua
+Config.Features = {
+    ['player.kick']   = false,   -- nobody can kick, whatever their rank
+    ['vehicle.dvall'] = false,
+    ['garage.give']   = true,
+}
+```
+
+Set every entry to `false` and the menu is switched off completely - even
+`menu.open`, so the key does nothing at all.
+
+A key that is missing from the table counts as enabled, so deleting a line
+turns the option **on**, not off. That is the opposite of `Config.Permissions`,
+where a missing line locks the option to the top rank.
+
+The two tables are independent and both must pass:
+
+| | `Config.Features` | `Config.Permissions` |
+|---|---|---|
+| Question it answers | does this option exist at all? | who is allowed to use it? |
+| Value | `true` / `false` | a rank name, or `false` |
+| Missing line means | enabled | owner only |
+
 ## Which options each rank sees
 
 This is `Config.Permissions`, and it is the table you will spend the most time

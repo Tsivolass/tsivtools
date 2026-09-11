@@ -63,6 +63,8 @@ docs/
 
 **Everything else**
 
+- A `Config.Features` switch for every option, so any of them - or all of them -
+  can be turned off without touching code.
 - Ranks with per-option permission mapping. An option a rank cannot use is
   never sent to that client, and is checked again on the server when used.
   There is no staff-on-staff restriction: whoever holds a permission can use it

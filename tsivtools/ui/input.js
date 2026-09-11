@@ -1,11 +1,3 @@
-/*
-    tsivtools - text input overlay
-
-    The game's own DisplayOnscreenKeyboard has no clipboard support, so an
-    identifier cannot be pasted into it. This is a plain HTML input instead,
-    which gets paste, selection and cursor keys for free.
-*/
-
 (function () {
     'use strict';
 
@@ -29,7 +21,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify(body || {})
-        }).catch(function () { /* the client is gone, nothing to do */ });
+        }).catch(function () {  });
     }
 
     function updateCounter() {
@@ -54,8 +46,6 @@
         overlay.classList.remove('hidden');
         updateCounter();
 
-        // The frame has only just been made visible, so focus has to wait for
-        // the next paint or it silently does not take.
         requestAnimationFrame(function () {
             field.focus();
             field.select();
@@ -81,8 +71,6 @@
 
     field.addEventListener('input', updateCounter);
 
-    // Keydown rather than keyup: Escape has to be swallowed before the game
-    // sees it and closes the NUI frame from under us.
     document.addEventListener('keydown', function (event) {
         if (!open) return;
 
@@ -95,7 +83,6 @@
         }
     });
 
-    // Clicking the dimmed area cancels; clicking the box itself must not.
     overlay.addEventListener('mousedown', function (event) {
         if (open && !box.contains(event.target)) close(false);
     });
