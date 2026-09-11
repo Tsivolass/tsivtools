@@ -1,0 +1,3 @@
+# Runtime data written by tsivtools when Config.Database.enabled is false.
+tsivtools/data/*.json
+tsivtools/data/*.corrupt.json
