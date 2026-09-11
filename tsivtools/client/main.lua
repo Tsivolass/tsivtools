@@ -294,14 +294,21 @@ local function buildPlayers(menu)
     end
 
     if can('player.setrank') then
-        local values = { { label = 'none', value = 'none' } }
+        -- "Remove rank" sits at the end rather than the start, so pressing
+        -- Enter without arrowing first cannot strip somebody's rank by
+        -- accident.
+        local values = {}
         for _, rank in ipairs(TSIV.Ranks()) do
             values[#values + 1] = { label = rank.label, value = rank.name }
         end
-        menu:List('Set staff rank', 'Stored in data/staff.json, so it survives a restart.', values, function(value)
-            if not requireSelection() then return end
-            TSIV.Action('player.setrank', { target = selected.id, rank = value })
-        end)
+        values[#values + 1] = { label = 'remove rank', value = 'none' }
+
+        menu:List('Set staff rank',
+            'Left and right to pick a rank, Enter to apply it. Stored in data/staff.json, so it survives a restart.',
+            values, function(value)
+                if not requireSelection() then return end
+                TSIV.Action('player.setrank', { target = selected.id, rank = value })
+            end)
     end
 
     if can('player.unban') then
@@ -600,7 +607,7 @@ local function buildStaff(menu)
             end)
         end)
 
-        local categories = { 'all', 'staff', 'anticheat', 'connect', 'ban', 'garage' }
+        local categories = { 'all', 'staff', 'anticheat', 'props', 'connect', 'ban', 'garage' }
         local values = {}
         for _, category in ipairs(categories) do
             values[#values + 1] = { label = category, value = category }

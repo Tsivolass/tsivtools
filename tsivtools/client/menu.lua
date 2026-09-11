@@ -29,6 +29,7 @@ local stack = {}
 local index = 1
 local offset = 0
 local lastInput = 0
+local inputLocked = false
 
 -- ---------------------------------------------------------------------------
 -- Layout
@@ -453,6 +454,10 @@ local function drawMenu()
 end
 
 local function handleInput()
+    -- A text box is open on top of the menu. Typing into it must not also move
+    -- the cursor, and the Enter that submits it must not fire the row beneath.
+    if inputLocked then return end
+
     for _, control in ipairs(controlsToDisable) do
         DisableControlAction(0, control, true)
     end
@@ -491,31 +496,142 @@ CreateThread(function()
 end)
 
 -- ---------------------------------------------------------------------------
+-- Input lock
+-- ---------------------------------------------------------------------------
+-- While a text box is open the menu must stop reading keys, otherwise typing
+-- drives the cursor and the Enter that submits the box also fires whatever row
+-- happens to be selected underneath it.
+
+function Menu.LockInput(state)
+    inputLocked = state and true or false
+end
+
+function Menu.InputLocked()
+    return inputLocked
+end
+
+-- ---------------------------------------------------------------------------
 -- Text input
 -- ---------------------------------------------------------------------------
 
---- Blocking on-screen keyboard. Returns the typed string, or nil if cancelled.
-function TSIV.Input(title, default, maxLength)
-    AddTextEntry('TSIVTOOLS_INPUT', title or 'Enter a value')
-    DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', maxLength or 64)
+local pending = nil
 
-    while UpdateOnscreenKeyboard() == 0 do
-        DisableAllControlActions(0)
-        Wait(0)
+local function finish(value)
+    if not pending then return end
+    pending.value = value
+    pending.done = true
+end
+
+RegisterNUICallback('inputSubmit', function(data, cb)
+    SetNuiFocus(false, false)
+    finish(type(data) == 'table' and data.value or nil)
+    cb('ok')
+end)
+
+RegisterNUICallback('inputCancel', function(_, cb)
+    SetNuiFocus(false, false)
+    finish(nil)
+    cb('ok')
+end)
+
+--- The NUI text box. Gives paste, selection and cursor keys, none of which the
+--- game's own keyboard supports.
+local function nuiInput(title, default, maxLength, numeric)
+    pending = { done = false, value = nil }
+
+    Menu.LockInput(true)
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openInput',
+        title = title or 'Enter a value',
+        default = default or '',
+        maxLength = maxLength or 64,
+        numeric = numeric and true or false,
+    })
+
+    -- Two minutes is long enough for anyone to alt-tab and find an identifier
+    -- to paste, and short enough that a broken frame cannot strand the player
+    -- with the mouse cursor captured forever.
+    local waited = 0
+    while not pending.done and waited < 120000 do
+        Wait(50)
+        waited = waited + 50
     end
 
-    if UpdateOnscreenKeyboard() ~= 1 then
+    local result = pending.value
+    local timedOut = not pending.done
+    pending = nil
+
+    if timedOut then
+        SendNUIMessage({ action = 'closeInput' })
+    end
+
+    SetNuiFocus(false, false)
+    Menu.LockInput(false)
+
+    if timedOut then
+        TSIV.Notify('The text box timed out.', 'error')
+        return nil
+    end
+
+    return result
+end
+
+--- The game's own keyboard, kept as a fallback for anyone who would rather not
+--- run an NUI frame. No paste support, that is a limitation of the native.
+local function nativeInput(title, default, maxLength)
+    Menu.LockInput(true)
+
+    AddTextEntry('TSIVTOOLS_INPUT', title or 'Enter a value')
+    DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', (maxLength or 64) + 1)
+
+    -- UpdateOnscreenKeyboard reports 3 ("not active") for the first frames
+    -- after the request, and only then starts reporting 0 ("still typing").
+    -- Waiting on == 0 therefore falls straight through and returns nothing,
+    -- so wait for a definite success or cancel instead.
+    local status = UpdateOnscreenKeyboard()
+    local waited = 0
+    while status ~= 1 and status ~= 2 and waited < 120000 do
+        DisableAllControlActions(0)
+        Wait(0)
+        waited = waited + 1
+        status = UpdateOnscreenKeyboard()
+    end
+
+    Menu.LockInput(false)
+
+    if status ~= 1 then
         return nil
     end
 
     local result = GetOnscreenKeyboardResult()
-    Wait(100)
+    Wait(50)
     return result
+end
+
+--- Ask the player for some text. Returns nil when they cancel.
+function TSIV.Input(title, default, maxLength)
+    if Config.UseNuiInput then
+        return nuiInput(title, default, maxLength, false)
+    end
+    return nativeInput(title, default, maxLength)
 end
 
 --- Input that must be a number. Returns nil when cancelled or not a number.
 function TSIV.InputNumber(title, default, maxLength)
-    local value = TSIV.Input(title, default and tostring(default) or '', maxLength or 10)
+    local value
+    if Config.UseNuiInput then
+        value = nuiInput(title, default and tostring(default) or '', maxLength or 10, true)
+    else
+        value = nativeInput(title, default and tostring(default) or '', maxLength or 10)
+    end
+
     if value == nil then return nil end
-    return tonumber(value)
+    return tonumber((value:gsub('%s', '')))
 end
+
+-- Never leave the mouse cursor captured if the resource stops mid-prompt.
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= TSIV.resource then return end
+    SetNuiFocus(false, false)
+end)

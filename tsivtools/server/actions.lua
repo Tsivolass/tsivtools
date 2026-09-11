@@ -277,13 +277,17 @@ TSIV.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
         return
     end
 
-    -- Nobody hands out a rank equal to or above their own.
-    if rank ~= 'none' and src ~= 0 and TSIV.RankLevel(rank) >= TSIV.RankLevel(TSIV.GetRank(src)) then
-        TSIV.Notify(src, 'You cannot grant a rank equal to or above your own.', 'error')
+    -- Nobody hands out a rank ABOVE their own. Granting your own rank is
+    -- allowed, otherwise the top rank could never be given to anybody: an
+    -- owner would be unable to make a second owner.
+    if rank ~= 'none' and src ~= 0 and TSIV.RankLevel(rank) > TSIV.RankLevel(TSIV.GetRank(src)) then
+        TSIV.Notify(src, ('You cannot grant %s. It is above your own rank (%s).')
+            :format(TSIV.RankLabel(rank), TSIV.RankLabel(TSIV.GetRank(src))), 'error')
         return
     end
     if not TSIV.OutranksTarget(src, target) then
-        TSIV.Notify(src, 'You cannot change the rank of somebody of your own rank or higher.', 'error')
+        TSIV.Notify(src, ('You cannot change the rank of %s. They are %s, the same as you or higher.')
+            :format(TSIV.GetName(target), TSIV.RankLabel(TSIV.GetRank(target) or 'none')), 'error')
         return
     end
 
@@ -303,6 +307,10 @@ TSIV.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
 
     TSIV.Notify(src, ('Set %s to %s'):format(TSIV.GetName(target), rank), 'success')
     TSIV.Notify(target, ('Your staff rank is now: %s'):format(rank), 'info')
+
+    if rank ~= 'none' and src ~= 0 and TSIV.RankLevel(rank) == TSIV.RankLevel(TSIV.GetRank(src)) then
+        TSIV.Notify(src, 'They now hold your rank, so neither of you can change the other.', 'warn')
+    end
     Logs.Staff(src, ('Set the rank of %s to %s'):format(TSIV.Describe(target), rank), identifier,
         { rank = rank, identifier = identifier })
 

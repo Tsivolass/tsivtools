@@ -12,6 +12,7 @@ tsivtools/
   shared/util.lua     helpers used by both sides
   client/             menu, actions, client checks
   server/             permissions, logs, bans, garage, anti-cheat
+  ui/                 the text box, which is what makes paste work
   data/               JSON storage, created on first run
 docs/
   SETUP.md            running a server on your PC from scratch, and testing this
@@ -52,7 +53,9 @@ docs/
   cancelled before it exists, and staff get the line in F8 immediately.
 - Explosion type blocking and explosion rate limiting.
 - Optional per-spawn logging of every prop, vehicle or ped, with the creator's
-  user ID and the entity id, into the F8 console of staff at a configured rank.
+  user ID and the entity id, into the F8 console of staff at a configured rank,
+  and into the searchable log store so the identifier lookup finds them later.
+  Models are resolved to names where tsivtools knows them.
 - Ownership tracking, so "delete everything this player spawned" is one click,
   and so entities can be cleaned up when their owner disconnects.
 - Light client-side checks (speed, health, armour, blacklisted weapons) that
@@ -106,6 +109,9 @@ nothing but the FiveM client installed.
 | Arrow left / right | Change the value on a `< ... >` row |
 | Enter | Select |
 | Backspace | Back, and close at the top level |
+
+Prompts that ask you to type something open a text box over the game: Enter
+confirms, Escape cancels, Ctrl+V pastes.
 
 Rebind it in the pause menu: **Settings → Key Bindings → FiveM → Open the
 tsivtools menu**. That is per player and stored client side, so everyone picks
