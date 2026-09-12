@@ -179,11 +179,11 @@ end
 
 function TSIV.StaffBroadcast(minRank, message, consoleLines)
     for _, member in ipairs(TSIV.GetStaff(minRank)) do
-        if message then
-            TriggerClientEvent(TSIV.Events.alert, member.source, message)
-        end
         if consoleLines then
             TSIV.ConsoleBlock(member.source, message or 'tsivtools alert', consoleLines)
+            TriggerClientEvent(TSIV.Events.alert, member.source, nil)
+        elseif message then
+            TriggerClientEvent(TSIV.Events.alert, member.source, message)
         end
     end
 
@@ -287,6 +287,7 @@ local function sendPermissions(src)
         level = TSIV.RankLevel(rank),
         granted = granted,
         propLogging = TSIV.PropLoggingEnabled and TSIV.PropLoggingEnabled() or false,
+        traffic = TSIV.TrafficState and TSIV.TrafficState() or nil,
     })
 end
 

@@ -181,6 +181,9 @@ Two consequences worth knowing:
 | `prop.deleteall` | Delete every prop on the map |
 | `prop.deleteplayer` | Delete everything a named player spawned |
 | `prop.toggleproplog` | The prop spawn logging switch |
+| `prop.spawn` | Spawn a prop by model name |
+| `world.traffic` | Turn ambient traffic, peds, cops, boats or trains off |
+| `world.cleartraffic` | Delete the traffic already in the world |
 | `garage.lookup` | Look up a garage |
 | `garage.give` | Give a vehicle to a garage |
 | `garage.remove` | Remove a vehicle from a garage |
@@ -341,6 +344,52 @@ Two things to get right before you turn `action` up to `'ban'`:
   skipped by the spam counters and by the client checks entirely.
 
 ---
+
+## Traffic
+
+```lua
+Config.Traffic = {
+    disableVehicles = false,
+    disablePeds     = false,
+    disableCops     = false,
+    disableBoats    = false,
+    disableTrains   = false,
+}
+```
+
+Turns the game's own ambient population off for everybody. **Props & Entities**
+has a checkbox per line that flips it live for the whole server and remembers
+it across restarts, plus **Clear traffic now**, which deletes the cars and peds
+already in the world. Script-spawned vehicles and player characters are left
+alone.
+
+An empty map is the sane way to test entity detection, and it removes the
+biggest source of anti-cheat noise at source.
+
+## Alert noise
+
+```lua
+Config.AntiCheat.ignoreAmbientEntities = true
+Config.AntiCheat.alertCooldownSeconds  = 30
+```
+
+`entityCreated` fires for **every** networked entity, and GTA's ambient traffic
+is created by whichever player is nearest. Without a filter, driving around
+alone reads as spawning dozens of vehicles a minute, and the spam detection
+fires constantly - which is exactly what happens once you take yourself out of
+`exemptRank`.
+
+`ignoreAmbientEntities` restricts every count, and the spawn log, to entities a
+script actually created (population types 6 and 7). Set it to `false` only if
+you want to see the traffic too.
+
+`alertCooldownSeconds` caps how often one player can raise the same kind of
+alert. Anything suppressed is counted and reported on the next one, so a flood
+shows up as one entry saying how many followed rather than a wall of them. Set
+it to `0` for an alert every time. It applies to `alert` only; `kick` and `ban`
+always act.
+
+Alerts are printed to the F8 console, not chat.
 
 ## Blacklisted models
 
@@ -600,6 +649,8 @@ These exist alongside the menu and go through the same permission check.
 | `/slay <id>` | `player.slay` |
 | `/dv [radius]` | `vehicle.dvarea` |
 | `/dp [radius]` | `prop.deletearea` |
+| `/prop <model>` | `prop.spawn` |
+| `/cleartraffic` | `world.cleartraffic` |
 | `/staffchat <message>` | `staff.chat` |
 
 Server console only:

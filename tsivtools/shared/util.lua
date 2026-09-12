@@ -187,4 +187,5 @@ TSIV.Events = {
     notify      = prefix .. 'cl:notify',
     run         = prefix .. 'cl:run',
     alert       = prefix .. 'cl:alert',
+    chat        = prefix .. 'cl:chat',
 }

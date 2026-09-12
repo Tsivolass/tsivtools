@@ -402,6 +402,14 @@ local function buildVehicles(menu)
     end
 end
 
+local trafficLabels = {
+    { key = 'vehicles', label = 'Disable traffic vehicles' },
+    { key = 'peds',     label = 'Disable walking peds' },
+    { key = 'cops',     label = 'Disable random cops' },
+    { key = 'boats',    label = 'Disable random boats' },
+    { key = 'trains',   label = 'Disable trains' },
+}
+
 local function buildProps(menu)
     if can('prop.toggleproplog') then
         menu:Checkbox('Log every prop spawn in the console',
@@ -409,6 +417,32 @@ local function buildProps(menu)
             permissions.propLogging, function(state)
                 TSIV.Action('prop.toggleproplog', { state = state })
             end)
+    end
+
+    if can('prop.spawn') then
+        menu:Button('Spawn a prop', 'Type a prop model name, it drops in front of you !', function()
+            CreateThread(function()
+                local model = TSIV.Input('Prop model name', '', 48)
+                if not model or model == '' then return end
+                TSIV.Action('prop.spawn', { model = model })
+            end)
+        end)
+    end
+
+    if can('world.traffic') then
+        local state = (permissions and permissions.traffic) or {}
+        for _, entry in ipairs(trafficLabels) do
+            menu:Checkbox(entry.label, 'Applies to everyone on the server !', state[entry.key] == true,
+                function(checked)
+                    TSIV.Action('world.traffic', { key = entry.key, state = checked })
+                end)
+        end
+    end
+
+    if can('world.cleartraffic') then
+        menu:Button('Clear traffic now', 'Deletes cars and peds the game spawned, not yours !', function()
+            TSIV.Action('world.cleartraffic', {})
+        end)
     end
 
     if can('prop.deletenearest') then
@@ -634,6 +668,10 @@ end
 
 RegisterNetEvent(TSIV.Events.permissions, function(payload)
     permissions = payload
+
+    if payload and payload.traffic then
+        TSIV.ApplyTraffic(payload.traffic)
+    end
 
     if not permissions then
         root = nil

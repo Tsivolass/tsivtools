@@ -14,7 +14,11 @@ tsivtools/
   server/             permissions, logs, bans, garage, anti-cheat
   ui/                 the text box, which is what makes paste work
   data/               JSON storage, created on first run
+server/
+  server.cfg          a working config, chat and onesync included
+  setup.ps1 / .sh     installs the official base resources and copies tsivtools in
 docs/
+  BASESERVER.md       building a test server out of open source parts
   SETUP.md            running a server on your PC from scratch, and testing this
   CUSTOMISING.md      every config option, explained
   EXTENDING.md        adding your own options and checks
@@ -34,7 +38,8 @@ docs/
 - **Vehicles** - spawn from a list or by model name, repair, refuel, flip,
   delete the one you are aiming at, delete every vehicle within a radius
   (with or without occupants), delete every vehicle on the map.
-- **Props & entities** - toggle prop spawn logging, delete the prop you are
+- **Props & entities** - spawn a prop by name, turn the game's ambient traffic
+  off server wide and clear what is already there, toggle prop spawn logging, delete the prop you are
   looking at, clear props or loose peds within a radius, clear every prop on
   the map, delete everything a named player spawned, print the live anti-cheat
   settings.
@@ -137,6 +142,8 @@ All of them go through the same permission check as the menu.
 | `/slay <id>` | `player.slay` |
 | `/dv [radius]` | `vehicle.dvarea` |
 | `/dp [radius]` | `prop.deletearea` |
+| `/prop <model>` | `prop.spawn` |
+| `/cleartraffic` | `world.cleartraffic` |
 | `/staffchat <message>` | `staff.chat` |
 
 Server console only:

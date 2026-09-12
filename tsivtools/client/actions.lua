@@ -406,6 +406,74 @@ local function currentVehicle()
     return nil
 end
 
+TSIV.Traffic = { vehicles = false, peds = false, cops = false, boats = false, trains = false }
+
+local trafficRunning = false
+
+local function trafficActive()
+    local t = TSIV.Traffic
+    return t.vehicles or t.peds or t.cops or t.boats or t.trains
+end
+
+local function startTrafficThread()
+    if trafficRunning then return end
+    trafficRunning = true
+
+    CreateThread(function()
+        while trafficActive() do
+            local t = TSIV.Traffic
+
+            if t.vehicles then
+                SetVehicleDensityMultiplierThisFrame(0.0)
+                SetRandomVehicleDensityMultiplierThisFrame(0.0)
+                SetParkedVehicleDensityMultiplierThisFrame(0.0)
+                SetFarDrawVehicles(false)
+            end
+
+            if t.peds then
+                SetPedDensityMultiplierThisFrame(0.0)
+                SetScenarioPedDensityMultiplierThisFrame(0.0, 0.0)
+            end
+
+            if t.cops then
+                SetCreateRandomCops(false)
+                SetCreateRandomCopsNotOnScenarios(false)
+                SetCreateRandomCopsOnScenarios(false)
+            end
+
+            if t.boats then
+                SetRandomBoats(false)
+                SetGarbageTrucks(false)
+            end
+
+            Wait(0)
+        end
+
+        trafficRunning = false
+
+        SetCreateRandomCops(true)
+        SetCreateRandomCopsNotOnScenarios(true)
+        SetCreateRandomCopsOnScenarios(true)
+        SetRandomBoats(true)
+        SetGarbageTrucks(true)
+        SetFarDrawVehicles(true)
+    end)
+end
+
+function TSIV.ApplyTraffic(state)
+    for key, value in pairs(state or {}) do
+        TSIV.Traffic[key] = value and true or false
+    end
+
+    if TSIV.Traffic.trains ~= nil then
+        SetRandomTrains(not TSIV.Traffic.trains)
+    end
+
+    if trafficActive() then
+        startTrafficThread()
+    end
+end
+
 local commands = {}
 
 commands.teleport = function(payload)
@@ -522,6 +590,38 @@ commands.deleteVehicle = function()
         Wait(400)
     end
     TSIV.DeleteEntityViaServer(entity, 'vehicles')
+end
+
+commands.setTraffic = function(payload)
+    TSIV.ApplyTraffic(payload)
+end
+
+commands.spawnProp = function(payload)
+    local model = payload.model
+    local hash = requestModel(model)
+    if not hash then
+        TSIV.Notify(('"%s" is not a valid prop model !'):format(tostring(model)), 'error')
+        return
+    end
+
+    local ped = PlayerPedId()
+    local coords = GetEntityCoords(ped)
+    local forward = GetEntityForwardVector(ped)
+    local target = coords + forward * (payload.distance or 2.5)
+
+    local object = CreateObject(hash, target.x, target.y, target.z, true, true, false)
+    if object == 0 then
+        TSIV.Notify('The prop could not be created !', 'error')
+        SetModelAsNoLongerNeeded(hash)
+        return
+    end
+
+    SetEntityAsMissionEntity(object, true, true)
+    PlaceObjectOnGroundProperly(object)
+    FreezeEntityPosition(object, true)
+    SetModelAsNoLongerNeeded(hash)
+
+    TSIV.Notify(('Spawned %s !'):format(model), 'success')
 end
 
 RegisterNetEvent(TSIV.Events.run, function(command, payload)
