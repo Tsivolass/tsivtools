@@ -86,6 +86,9 @@ Config.Features = {
     ['prop.deleteall']     = true,
     ['prop.deleteplayer']  = true,
     ['prop.toggleproplog'] = true,
+    ['prop.spawn']         = true,
+    ['world.traffic']      = true,
+    ['world.cleartraffic'] = true,
 
     ['garage.lookup']      = true,
     ['garage.give']        = true,
@@ -140,6 +143,9 @@ Config.Permissions = {
     ['prop.deleteall']         = 'superadmin',
     ['prop.deleteplayer']      = 'admin',
     ['prop.toggleproplog']     = 'admin',
+    ['prop.spawn']             = 'admin',
+    ['world.traffic']          = 'admin',
+    ['world.cleartraffic']     = 'admin',
 
     ['garage.lookup']          = 'mod',
     ['garage.give']            = 'superadmin',
@@ -160,6 +166,14 @@ Config.MenuSections = {
     { id = 'props',   label = 'Props & Entities' },
     { id = 'garage',  label = 'Garage' },
     { id = 'staff',   label = 'Staff & Logs' },
+}
+
+Config.Traffic = {
+    disableVehicles = false,
+    disablePeds     = false,
+    disableCops     = false,
+    disableBoats    = false,
+    disableTrains   = false,
 }
 
 Config.Teleports = {
@@ -251,6 +265,10 @@ Config.AntiCheat = {
     },
 
     alertRank = 'superadmin',
+
+    ignoreAmbientEntities = true,
+
+    alertCooldownSeconds = 30,
 
     blacklistedProps = {
         'prop_beach_fire',

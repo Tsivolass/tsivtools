@@ -11,6 +11,35 @@ local windows = {}
 local createdBy = {}
 local burst = {}
 
+local scriptPopulationTypes = { [6] = true, [7] = true }
+
+local function isScriptSpawned(entity)
+    if not settings.ignoreAmbientEntities then return true end
+    local ok, population = pcall(GetEntityPopulationType, entity)
+    if not ok or population == nil then return true end
+    return scriptPopulationTypes[population] == true
+end
+
+local alertedAt = {}
+
+local function alertAllowed(src, kind)
+    local cooldown = settings.alertCooldownSeconds or 0
+    if cooldown <= 0 then return true, 0 end
+
+    alertedAt[src] = alertedAt[src] or {}
+    local entry = alertedAt[src][kind]
+    local now = GetGameTimer() / 1000.0
+
+    if entry and now - entry.at < cooldown then
+        entry.held = entry.held + 1
+        return false, entry.held
+    end
+
+    local held = entry and entry.held or 0
+    alertedAt[src][kind] = { at = now, held = 0 }
+    return true, held
+end
+
 local function isExempt(src)
     if not src or src <= 0 then return true end
     local rank = TSIV.GetRank(src)
@@ -117,10 +146,15 @@ local function checkSpam(src, kind, rules, entity, modelName)
 
     window:reset()
 
+    local allowed, held = alertAllowed(src, kind)
+
     local detail = {
         ('count     : %d in %.1f second(s), limit is %d'):format(count, rules.window, rules.threshold),
         ('last model: %s'):format(modelName or 'unknown'),
     }
+    if held > 0 then
+        detail[#detail + 1] = ('suppressed: %d more since the last alert'):format(held)
+    end
 
     if rules.cleanup then
         local removed = 0
@@ -133,6 +167,8 @@ local function checkSpam(src, kind, rules, entity, modelName)
         detail[#detail + 1] = ('cleanup : deleted %d entity(s) from the burst'):format(removed)
     end
     burst[src][kind] = {}
+
+    if rules.action == 'alert' and not allowed then return end
 
     punish(src, rules.action, rules.reason, rules.banLength, detail)
 end
@@ -232,6 +268,7 @@ AddEventHandler('entityCreated', function(entity)
 
     local owner = ownerOf(entity)
     if not owner then return end
+    if not isScriptSpawned(entity) then return end
 
     local model = GetEntityModel(entity)
     remember(owner, entity, model, kind)
@@ -366,6 +403,7 @@ AddEventHandler('playerDropped', function()
     windows[src] = nil
     createdBy[src] = nil
     burst[src] = nil
+    alertedAt[src] = nil
 end)
 
 TSIV.RegisterRequest('anticheat.status', 'staff.alerts', function()

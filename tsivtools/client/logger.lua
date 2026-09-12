@@ -28,9 +28,58 @@ function TSIV.Notify(message, kind)
     EndTextCommandThefeedPostTicker(false, true)
 end
 
-function TSIV.Chat(message)
-    TriggerEvent('chat:addMessage', { args = { message }, multiline = true })
+local feed = {}
+
+local function chatAvailable()
+    return GetResourceState('chat') == 'started'
 end
+
+local function stripColours(text)
+    return (tostring(text):gsub('%^%d', ''))
+end
+
+function TSIV.Chat(message)
+    if chatAvailable() then
+        TriggerEvent('chat:addMessage', { args = { message }, multiline = true })
+        return
+    end
+
+    local plain = stripColours(message)
+    feed[#feed + 1] = { text = plain, expires = GetGameTimer() + 15000 }
+    while #feed > 8 do table.remove(feed, 1) end
+    TSIV.Print(plain)
+end
+
+CreateThread(function()
+    while true do
+        if #feed == 0 then
+            Wait(500)
+        else
+            local now = GetGameTimer()
+            for i = #feed, 1, -1 do
+                if feed[i].expires <= now then table.remove(feed, i) end
+            end
+
+            local y = 0.62
+            for _, entry in ipairs(feed) do
+                SetTextFont(4)
+                SetTextScale(0.34, 0.34)
+                SetTextColour(255, 255, 255, 220)
+                SetTextDropShadow()
+                SetTextOutline()
+                SetTextEntry('STRING')
+                AddTextComponentSubstringPlayerName(entry.text)
+                DrawText(0.015, y)
+                y = y + 0.022
+            end
+            Wait(0)
+        end
+    end
+end)
+
+RegisterNetEvent(TSIV.Events.chat, function(message)
+    TSIV.Chat(message)
+end)
 
 RegisterNetEvent(TSIV.Events.console, function(payload, kind)
     if type(payload) == 'table' then
@@ -49,7 +98,7 @@ RegisterNetEvent(TSIV.Events.notify, function(message, kind)
 end)
 
 RegisterNetEvent(TSIV.Events.alert, function(message)
-    TSIV.Chat(message)
-    TSIV.Notify('anticheat alert !! check console and chat :))', 'warn')
+    if message then TSIV.Print(stripColours(message)) end
+    TSIV.Notify('anticheat alert !! check console :)', 'warn')
     PlaySoundFrontend(-1, 'Event_Start_Text', 'GTAO_FM_Events_Soundset', true)
 end)

@@ -463,6 +463,105 @@ TSIV.RegisterAction('entity.deleteNearest', nil, function(src, payload)
     Logs.Staff(src, ('Deleted entity %s (model %s)'):format(netId, model))
 end)
 
+local trafficKeys = {
+    vehicles = 'disableVehicles',
+    peds     = 'disablePeds',
+    cops     = 'disableCops',
+    boats    = 'disableBoats',
+    trains   = 'disableTrains',
+}
+
+local function trafficState()
+    local state = {}
+    for key, configKey in pairs(trafficKeys) do
+        state[key] = TSIV.Setting('traffic_' .. key, Config.Traffic[configKey]) and true or false
+    end
+    return state
+end
+
+TSIV.TrafficState = trafficState
+
+AddEventHandler(TSIV.Events.ready, function()
+    run(source, 'setTraffic', trafficState())
+end)
+
+TSIV.RegisterAction('world.traffic', 'world.traffic', function(src, payload)
+    local key = payload.key
+    if not trafficKeys[key] then return end
+
+    local state = payload.state and true or false
+    TSIV.SetSetting('traffic_' .. key, state)
+
+    local current = trafficState()
+    TriggerClientEvent(TSIV.Events.run, -1, 'setTraffic', current)
+
+    TSIV.Notify(src, ('%s are now %s !'):format(key, state and 'OFF' or 'ON'), 'success')
+    Logs.Staff(src, ('Turned %s %s'):format(key, state and 'off' or 'on'))
+
+    for _, player in ipairs(GetPlayers()) do
+        TSIV.SendPermissions(tonumber(player))
+    end
+end)
+
+local function isAmbient(entity)
+    local ok, population = pcall(GetEntityPopulationType, entity)
+    if not ok or population == nil then return false end
+    return population ~= 6 and population ~= 7
+end
+
+local function clearTraffic()
+    local playerPeds = playerPedSet()
+    local removed = 0
+    local ambient = isAmbient
+
+    for _, vehicle in ipairs(GetAllVehicles()) do
+        if DoesEntityExist(vehicle) and ambient(vehicle) then
+            local occupied = false
+            for seat = -1, 6 do
+                if GetPedInVehicleSeat(vehicle, seat) ~= 0 then
+                    occupied = true
+                    break
+                end
+            end
+            if not occupied then
+                DeleteEntity(vehicle)
+                removed = removed + 1
+            end
+        end
+    end
+
+    for _, ped in ipairs(GetAllPeds()) do
+        if DoesEntityExist(ped) and not playerPeds[ped] and ambient(ped) then
+            DeleteEntity(ped)
+            removed = removed + 1
+        end
+    end
+
+    return removed
+end
+
+TSIV.RegisterAction('world.cleartraffic', 'world.cleartraffic', function(src)
+    local removed = clearTraffic()
+    TSIV.Notify(src, ('Cleared %d traffic entities !'):format(removed), 'success')
+    Logs.Staff(src, ('Cleared %d traffic entities'):format(removed))
+end)
+
+TSIV.RegisterAction('prop.spawn', 'prop.spawn', function(src, payload)
+    local model = TSIV.SafeString(payload.model, 48):lower()
+    if model == '' then
+        TSIV.Notify(src, 'You need a prop model name !', 'error')
+        return
+    end
+
+    if TSIV.AntiCheat and TSIV.AntiCheat.IsBlacklistedProp and TSIV.AntiCheat.IsBlacklistedProp(model) then
+        TSIV.Notify(src, ('%s is blacklisted !'):format(model), 'error')
+        return
+    end
+
+    run(src, 'spawnProp', { model = model, distance = TSIV.ToNumber(payload.distance) or 2.5 })
+    Logs.Staff(src, ('Spawned prop %s'):format(model))
+end)
+
 TSIV.RegisterAction('prop.toggleproplog', 'prop.toggleproplog', function(src, payload)
     local state = payload.state and true or false
     TSIV.SetSetting('logPropSpawns', state)
@@ -516,7 +615,7 @@ TSIV.RegisterAction('staff.chat', 'staff.chat', function(src, payload)
     local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(TSIV.GetName(src), TSIV.RankLabel(rank), message)
 
     for _, member in ipairs(TSIV.GetStaff('mod')) do
-        TriggerClientEvent('chat:addMessage', member.source, { args = { line }, multiline = true })
+        TriggerClientEvent(TSIV.Events.chat, member.source, line)
     end
 
     print(('%s[staff chat] %s: %s'):format(Config.ConsolePrefix, TSIV.GetName(src), message))
@@ -532,10 +631,7 @@ TSIV.RegisterAction('staff.announce', 'staff.announce', function(src, payload)
     local message = TSIV.SafeString(payload.message, 200)
     if message == '' then return end
 
-    TriggerClientEvent('chat:addMessage', -1, {
-        args = { ('^1[ANNOUNCEMENT]^7 %s'):format(message) },
-        multiline = true,
-    })
+    TriggerClientEvent(TSIV.Events.chat, -1, ('^1[ANNOUNCEMENT]^7 %s'):format(message))
     TSIV.Notify(src, 'Announcement sent !!', 'success')
     Logs.Staff(src, ('Announced: %s'):format(message))
 end)
@@ -621,6 +717,28 @@ RegisterCommand('slay', function(src, args)
     Logs.Staff(src, ('Slayed %s'):format(TSIV.Describe(target)), target)
 end, false)
 
+RegisterCommand('prop', function(src, args)
+    if not commandPermission(src, 'prop.spawn') then return end
+    local model = TSIV.SafeString(args[1], 48):lower()
+    if model == '' then
+        TSIV.Notify(src, 'usage: /prop <model name>', 'error')
+        return
+    end
+    if TSIV.AntiCheat and TSIV.AntiCheat.IsBlacklistedProp and TSIV.AntiCheat.IsBlacklistedProp(model) then
+        TSIV.Notify(src, ('%s is blacklisted !'):format(model), 'error')
+        return
+    end
+    run(src, 'spawnProp', { model = model, distance = TSIV.ToNumber(args[2]) or 2.5 })
+    Logs.Staff(src, ('Spawned prop %s'):format(model))
+end, false)
+
+RegisterCommand('cleartraffic', function(src)
+    if not commandPermission(src, 'world.cleartraffic') then return end
+    local removed = clearTraffic()
+    TSIV.Notify(src, ('Cleared %d traffic entities !'):format(removed), 'success')
+    Logs.Staff(src, ('Cleared %d traffic entities'):format(removed))
+end, false)
+
 RegisterCommand('dv', function(src, args)
     if not commandPermission(src, 'vehicle.dvarea') then return end
     local radius = TSIV.ToNumber(args[1]) or 10.0
@@ -655,6 +773,6 @@ AddEventHandler('__tsivtools_staffchat', function(src, message)
     local rank = TSIV.GetRank(src)
     local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(TSIV.GetName(src), TSIV.RankLabel(rank), message)
     for _, member in ipairs(TSIV.GetStaff('mod')) do
-        TriggerClientEvent('chat:addMessage', member.source, { args = { line }, multiline = true })
+        TriggerClientEvent(TSIV.Events.chat, member.source, line)
     end
 end)
