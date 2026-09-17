@@ -1,0 +1,250 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", Arial, sans-serif;
+  --accent: #4c78ff;
+  --accent-soft: #7953df;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #e7edf8;
+  background: transparent;
+  user-select: none;
+}
+
+.menu {
+  position: fixed;
+  top: 13vh;
+  width: 500px;
+  max-width: 34vw;
+  padding: 5px;
+  border: 1px solid #20283a;
+  border-radius: 9px;
+  background: rgba(5, 7, 12, .85);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, .55);
+}
+
+body.pos-right .menu {
+  right: 2.5vw;
+}
+
+body.pos-left .menu {
+  left: 2vw;
+}
+
+body.pos-center .menu {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.menu--hidden {
+  display: none;
+}
+
+.menu__header {
+  position: relative;
+  min-height: 105px;
+  padding: 39px 25px 20px;
+  border: 1px solid #242d40;
+  border-top: 3px solid var(--accent);
+  border-radius: 5px 5px 0 0;
+  background:
+    linear-gradient(90deg, var(--accent) 0 56%, var(--accent-soft) 100%) top/100% 3px no-repeat,
+    #0c1018;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  color: #f5f7fc;
+  font-size: 25px;
+  font-weight: 620;
+  letter-spacing: -.3px;
+}
+
+.counter {
+  margin-left: auto;
+  padding: 4px 7px;
+  border: 1px solid #2c364c;
+  border-radius: 4px;
+  color: #b9c9ec;
+  background: #151b29;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.menu__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 16px;
+  border: 1px solid #202838;
+  border-top: 0;
+  color: #7785a0;
+  background: #10151f;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.menu__items {
+  border-right: 1px solid #1e2636;
+  border-left: 1px solid #1e2636;
+}
+
+.item {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid #1d2533;
+  color: #d9e0ed;
+  background: #0b0f17;
+  font-size: 14px;
+}
+
+.item > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.item strong {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: #8fa1c7;
+  font-size: 12px;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.item--selected {
+  padding-left: 16px;
+  border-color: #34425f;
+  color: #f8faff;
+  background: #1d2942;
+  box-shadow: inset 3px 0 var(--accent), inset -2px 0 var(--accent-soft);
+}
+
+.item--selected strong {
+  color: #c9d8fb;
+}
+
+.item--disabled,
+.item--disabled strong {
+  color: #667087;
+}
+
+.menu__scroll {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+  padding: 0 15px;
+  border: 1px solid #202838;
+  border-top: 0;
+  background: #0e131d;
+}
+
+.menu__scroll--hidden {
+  display: none;
+}
+
+.menu__scroll-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 2px;
+  border-radius: 99px;
+  background: #354058;
+}
+
+.menu__scroll span {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 48%;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+
+.menu__scroll small {
+  flex: 0 0 auto;
+  color: #7c89a4;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.menu__description {
+  min-height: 74px;
+  padding: 15px 18px;
+  border: 1px solid #222b3d;
+  border-top: 0;
+  border-left: 3px solid var(--accent-soft);
+  color: #d0d8e7;
+  background: #0f141e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.menu__description--hidden {
+  display: none;
+}
+
+.menu__credit {
+  padding: 9px 16px 10px;
+  border: 1px solid #202838;
+  border-top: 0;
+  border-radius: 0 0 5px 5px;
+  color: #7d899f;
+  background: #0f141e;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: .35px;
+  text-align: right;
+}
+
+.menu__credit--hidden {
+  display: none;
+}
+
+@media (max-width: 1400px) {
+  .menu {
+    width: 420px;
+  }
+
+  .menu__header {
+    min-height: 92px;
+    padding: 32px 19px 17px;
+  }
+
+  h1 {
+    font-size: 22px;
+  }
+
+  .item {
+    min-height: 42px;
+    font-size: 13px;
+  }
+}
