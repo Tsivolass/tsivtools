@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TsivTools :)</title>
+  <link rel="stylesheet" href="../ui/input.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="pos-right">
+  <main class="menu menu--hidden" id="menu" aria-label="TsivTools :)">
+    <header class="menu__header">
+      <h1 id="menu-title">tsivtools</h1>
+    </header>
+
+    <div class="menu__toolbar">
+      <span id="menu-subtitle">tsivtools</span>
+      <span class="counter" id="menu-counter">0 / 0</span>
+    </div>
+
+    <section class="menu__items" id="menu-items" aria-label="Menu items"></section>
+
+    <div class="menu__scroll menu__scroll--hidden" id="menu-scroll">
+      <div class="menu__scroll-track">
+        <span id="menu-scroll-thumb"></span>
+      </div>
+      <small id="menu-scroll-text"></small>
+    </div>
+
+    <section class="menu__description menu__description--hidden" id="menu-description">
+      <p id="menu-description-text"></p>
+    </section>
+
+    <div class="menu__credit" id="menu-credit">Developed by: Tsivolakos</div>
+  </main>
+
+  <div id="overlay" class="hidden">
+    <div id="box">
+      <div id="title">Enter a value</div>
+      <input id="field" type="text" autocomplete="off" autocorrect="off" spellcheck="false">
+      <div id="row">
+        <span id="hint">Enter to confirm &middot; Escape to cancel &middot; Ctrl+V to paste</span>
+        <span id="counter"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="menu.js"></script>
+  <script src="../ui/input.js"></script>
+</body>
+</html>
