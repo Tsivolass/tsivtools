@@ -523,18 +523,64 @@ answer to "never false ban but always ban the cheaters" - those two pull against
 each other, and one detector deciding alone is how you get it wrong.
 
 Every detection adds points, scaled by that module's weight in
-`Config.anticheat.confidence.weights`. Points decay to nothing over `window`
-(180 s). A ban needs **both** `banAt` (100 points) **and** at least
-`requireDistinctModules` (2) different modules to have contributed. One module
-screaming on its own never bans - it alerts at `alertAt` (40) and staff look.
+`Config.anticheat.confidence.weights`. Read the total as a **percentage of
+certainty**. Points decay to nothing over `window` (180 s), so evidence has to
+keep arriving to keep adding up.
+
+There are two ways to reach a ban, and no staff member is needed for either:
+
+- **`banAt` (100%) with `requireDistinctModules` (2) modules agreeing.** The
+  normal path. Two different checks independently pointing at the same player is
+  much harder to produce by accident than one check misfiring.
+- **`soloBanAt` (170%) from a single module.** The certain path. Some evidence
+  does not need a second opinion, it just needs enough of itself. A crosshair
+  that teleports across the screen in a single frame four separate times is not
+  a person having a good day.
+
+The second threshold sits well above the first on purpose. Corroborated evidence
+is trusted sooner; a lone detector has to work much harder before it is allowed
+to act by itself. Roughly what each module costs to ban on its own at the
+defaults:
+
+| Module | Detections to auto ban alone |
+|---|---|
+| `teleport` | 4 |
+| `godmode` | 4 |
+| `aimmismatch` | 5 |
+| `snapspeed` | 8 |
+| `silentaim` | 10 |
+| `aimbot` | 12 |
+| `settle` | 13 |
+| `overshoot` | 19 |
+
+The hard physical signals ban quickly. The soft behavioural ones need a mountain
+of evidence before they will act unaccompanied, which is what you want, because
+those are the ones that can be wrong.
+
+**Investigation-only modules.** Anything named in
+`Config.anticheat.confidence.evidenceOnly` still scores, still shows up in the
+breakdown and still raises alerts, but is excluded from the total that can ban.
+`punch` is in there by default - melee spam is already blocked at the event and
+is worth knowing about when you are reading a player's history, but it is not
+worth a ban and it should not be able to top one up. Anything you are not yet
+confident in belongs in this list until you have watched it for a while.
+
+Raising and lowering the two thresholds is the main dial:
+
+- ban **more** aggressively - lower `soloBanAt`, or lower `banAt`
+- ban **less** aggressively - raise `soloBanAt`
+- never ban from one module - set `soloBanAt = 0`
+- never auto ban at all - set `banAt` very high and `soloBanAt = 0`, and staff
+  work from the alerts only
 
 Set `Config.anticheat.confidence.enabled = false` and every module goes back to
 banning on its own strike counter, the way 0.9v does when you set a module's
 `action` to `'ban'`, `'kick'` or `'alert'` instead of `'confidence'`.
 
-Use `anticheat.confidence` from the staff menu to see a live breakdown of who has
-what score and which modules gave it to them. Watch that for a week before you
-trust any of it - the defaults are a starting point, not a truth.
+Use `anticheat.confidence` from the staff menu to see a live breakdown: the
+overall certainty, how much of it is allowed to act, how many modules agree, and
+which module contributed what. Watch that for a week before you trust the
+numbers - the defaults are a starting point, not a truth.
 
 ---
 

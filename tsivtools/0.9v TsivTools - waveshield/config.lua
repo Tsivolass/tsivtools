@@ -605,11 +605,16 @@ Config.anticheat = {
         decay  = true,
 
         banAt     = 100,
+        soloBanAt = 170,
         kickAt    = 0,
         alertAt   = 40,
         alertCooldown = 20.0,
 
         requireDistinctModules = 2,
+
+        evidenceOnly = {
+            punch = true,
+        },
 
         banReason  = 'Anticheat confidence threshold',
         kickReason = 'Anticheat confidence threshold',
