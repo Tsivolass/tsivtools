@@ -245,23 +245,21 @@ Then the tolerance itself, which is what keeps this from banning laggy players:
 ```lua
 local function toleranceFor(src, victim, distance)
     local rules = settings.silentAim
-    local tolerance = rules.lateralTolerance or 2.25
+    local tolerance = rules.lateralTolerance
 
-    if rules.latencyCompensation ~= false then
-        local ping = (GetPlayerPing(src) or 0) / 1000.0
-        if ping > (rules.maxCompensatedPing or 1.0) then ping = rules.maxCompensatedPing or 1.0 end
+    if rules.latencyCompensation then
+        local ping = math.min(GetPlayerPing(src) / 1000.0, rules.maxCompensatedPing)
+        local velocity = GetEntityVelocity(GetPlayerPed(victim))
+        local speed = math.sqrt(velocity.x ^ 2 + velocity.y ^ 2 + velocity.z ^ 2)
 
-        local vx, vy, vz = velocityOf(GetPlayerPed(victim))
-        local speed = math.sqrt(vx * vx + vy * vy + vz * vz)
-
-        local drift = ping * speed * (rules.latencyFactor or 1.0)
-        local cap = rules.maxCompensationMetres or 6.0
+        local drift = ping * speed * rules.latencyFactor
+        local cap = rules.maxCompensationMetres
         if drift > cap then drift = cap end
 
         tolerance = tolerance + drift
     end
 
-    if rules.distanceSlack and rules.distanceSlack > 0 then
+    if rules.distanceSlack > 0 then
         tolerance = tolerance + distance * rules.distanceSlack
     end
 
@@ -274,16 +272,16 @@ Line by line:
 1. `local tolerance = rules.lateralTolerance` - the base budget in metres. 2.25 m
    is roughly a player's width plus the slop in GTA's own hit registration.
    Raise it to ban less, lower it to ban more.
-2. `local ping = GetPlayerPing(src) / 1000.0` - ping in seconds. **This is the
-   single most important line in the whole check.** The server's copy of where a
-   player is standing is always out of date by about one ping. Without this, a
-   player on a bad connection shooting a sprinting target looks identical to a
-   cheater.
-3. `if ping > rules.maxCompensatedPing` - clamp it. Somebody on a 5 second ping
-   should not get 5 seconds of forgiveness; `pingGate` deals with them instead.
-4. `velocityOf(GetPlayerPed(victim))` then `speed` - how fast the **victim** is
-   moving. A victim standing still has not drifted, whatever the ping is, so
-   they get no extra slack at all.
+2. `GetPlayerPing(src) / 1000.0` - ping in seconds. **This is the single most
+   important line in the whole check.** The server's copy of where a player is
+   standing is always out of date by about one ping. Without this, a player on a
+   bad connection shooting a sprinting target looks identical to a cheater.
+3. `math.min(..., rules.maxCompensatedPing)` - clamp it. Somebody on a 5 second
+   ping should not get 5 seconds of forgiveness; `pingGate` deals with them
+   instead.
+4. `GetEntityVelocity(GetPlayerPed(victim))` then `speed` - how fast the
+   **victim** is moving. A victim standing still has not drifted, whatever the
+   ping is, so they get no extra slack at all.
 5. `local drift = ping * speed` - seconds times metres per second gives metres.
    This is literally how far the target moved while the packet was in flight.
    150 ms against a 7 m/s sprinter is 1.05 m of honest error.
@@ -433,49 +431,44 @@ logs.
 The sliding allowance:
 
 ```lua
-function Aim.AllowedStraightness(displacement, rules)
-    local small = rules.smallSnap or 5.0
-    local large = rules.largeSnap or 90.0
-    local high = rules.maxAllowed or 100.0
-    local low = rules.minAllowed or 82.0
-
-    local span = large - small
-    local ratio
-    if span <= 0 then
-        ratio = 1.0
-    else
-        ratio = (displacement - small) / span
+local function slide(displacement, rules, high, low)
+    local span = rules.largeSnap - rules.smallSnap
+    local ratio = 1.0
+    if span > 0 then
+        ratio = (displacement - rules.smallSnap) / span
     end
 
     if ratio < 0 then ratio = 0 elseif ratio > 1 then ratio = 1 end
-
-    local curve = rules.curve or 1.0
-    if curve ~= 1.0 then ratio = ratio ^ curve end
+    if rules.curve ~= 1.0 then ratio = ratio ^ rules.curve end
 
     return high - (high - low) * ratio
+end
+
+function Aim.AllowedStraightness(displacement, rules)
+    return slide(displacement, rules, rules.maxAllowed, rules.minAllowed)
 end
 ```
 
 Line by line:
 
-1. `small`, `large`, `high`, `low` - the four corners of the slide, read from
-   config with a fallback so a half-filled config still runs: from `smallSnap`
-   (5 degrees) to `largeSnap` (90 degrees), allowing `maxAllowed` (100%) down to
-   `minAllowed` (82%).
+1. `high`, `low` - the top and bottom of the slide. For straightness that is
+   `maxAllowed` (100%) down to `minAllowed` (82%). The range it slides across is
+   `smallSnap` (5 degrees) to `largeSnap` (90 degrees).
 2. `span` - the width of the sliding range.
-3. `if span <= 0 then ratio = 1.0` - if somebody sets `largeSnap` at or below
-   `smallSnap` the division would blow up, so fall straight to the strictest end
-   rather than erroring or, worse, silently allowing everything.
+3. `local ratio = 1.0` and `if span > 0` - if somebody sets `largeSnap` at or
+   below `smallSnap` the division would blow up, so the ratio stays at the
+   strictest end rather than erroring or, worse, silently allowing everything.
 4. `ratio` - where this particular delta x sits inside that range, as 0 to 1.
 5. the clamp - anything under `smallSnap` counts as the smallest movement,
    anything over `largeSnap` as the largest. Below 5 degrees you are allowed a
    full 100%, because a tiny nudge being straight proves nothing.
-6. `ratio ^ curve` - the shape of the slide. 1.0 is a straight line. Above 1.0
-   stays lenient longer and then drops off fast; below 1.0 tightens early.
+6. `ratio ^ rules.curve` - the shape of the slide. 1.0 is a straight line.
+   Above 1.0 stays lenient longer and then drops off fast; below 1.0 tightens
+   early.
 7. the return - interpolate from `high` down to `low`.
 
 So: 5 degrees allows 100%, 30 degrees allows about 94%, 90 degrees and beyond
-allows 82%. `AllowedCorridor` is the same function against `maxCorridor` and
+allows 82%. `AllowedCorridor` is the same slide against `maxCorridor` and
 `minCorridor`. **To make the whole check stricter, raise `minAllowed`. To make
 it more forgiving, lower it.** That one number is the main dial.
 

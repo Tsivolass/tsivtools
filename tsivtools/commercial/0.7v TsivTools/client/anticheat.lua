@@ -1,7 +1,7 @@
 local settings = Config.anticheat.client
 local blacklistedWeapons = {}
 
-for _, weapon in ipairs(settings.blacklistedWeapons or {}) do
+for _, weapon in ipairs(settings.blacklistedWeapons) do
     blacklistedWeapons[#blacklistedWeapons + 1] = { name = weapon, hash = GetHashKey(weapon) }
 end
 
@@ -65,7 +65,7 @@ CreateThread(function()
     Wait(30000)
 
     while true do
-        Wait((settings.interval or 5) * 1000)
+        Wait(settings.interval * 1000)
 
         local ped = PlayerPedId()
         local state = tsivtools.State

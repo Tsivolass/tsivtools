@@ -83,7 +83,7 @@ function tsivtools.GetRank(src)
             best, bestLevel = rank, tsivtools.RankLevel(rank)
         end
 
-        local stored = tsivtools.StaffStore and tsivtools.StaffStore()[identifier] or nil
+        local stored = tsivtools.StaffStore()[identifier]
         if stored and tsivtools.RankLevel(stored) > bestLevel then
             best, bestLevel = stored, tsivtools.RankLevel(stored)
         end
@@ -289,7 +289,7 @@ local function sendPermissions(src)
         rankLabel = tsivtools.RankLabel(rank),
         level = tsivtools.RankLevel(rank),
         granted = granted,
-        propLogging = tsivtools.PropLoggingEnabled and tsivtools.PropLoggingEnabled() or false,
+        propLogging = tsivtools.PropLoggingEnabled(),
     })
 end
 

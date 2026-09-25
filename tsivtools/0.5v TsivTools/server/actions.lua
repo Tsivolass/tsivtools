@@ -291,8 +291,7 @@ tsivtools.RegisterAction('vehicle.spawn', 'vehicle.spawn', function(src, payload
         return
     end
 
-    if tsivtools.AntiCheat and tsivtools.AntiCheat.IsBlacklistedVehicle
-        and tsivtools.AntiCheat.IsBlacklistedVehicle(model)
+    if tsivtools.AntiCheat.IsBlacklistedVehicle(model)
         and tsivtools.RankLevel(tsivtools.GetRank(src)) < tsivtools.RankLevel('superadmin') then
         tsivtools.Notify(src, ('%s is blacklisted !!'):format(model), 'error')
         return
@@ -347,6 +346,13 @@ local function playerPedSet()
     return set
 end
 
+local function occupied(vehicle)
+    for seat = -1, 6 do
+        if GetPedInVehicleSeat(vehicle, seat) ~= 0 then return true end
+    end
+    return false
+end
+
 local function cleanup(kind, origin, radius, skipOccupied)
     local entry = cleanupKinds[kind]
     if not entry then return 0 end
@@ -358,13 +364,8 @@ local function cleanup(kind, origin, radius, skipOccupied)
         if DoesEntityExist(entity) then
             local keep = false
 
-            if kind == 'vehicles' and skipOccupied ~= false then
-                for seat = -1, 6 do
-                    if GetPedInVehicleSeat(entity, seat) ~= 0 then
-                        keep = true
-                        break
-                    end
-                end
+            if kind == 'vehicles' and skipOccupied then
+                keep = occupied(entity)
             elseif kind == 'peds' then
                 keep = playerPeds[entity] == true
             end
@@ -372,8 +373,7 @@ local function cleanup(kind, origin, radius, skipOccupied)
             if not keep then
                 local inRange = true
                 if origin and radius then
-                    local ok, coords = pcall(GetEntityCoords, entity)
-                    inRange = ok and coords and distance(origin, coords) <= radius
+                    inRange = distance(origin, GetEntityCoords(entity)) <= radius
                 end
 
                 if inRange then
@@ -513,34 +513,23 @@ tsivtools.RegisterAction('world.traffic', 'world.traffic', function(src, payload
 end)
 
 local function isAmbient(entity)
-    local ok, population = pcall(GetEntityPopulationType, entity)
-    if not ok or population == nil then return false end
+    local population = GetEntityPopulationType(entity)
     return population ~= 6 and population ~= 7
 end
 
 local function clearTraffic()
     local playerPeds = playerPedSet()
     local removed = 0
-    local ambient = isAmbient
 
     for _, vehicle in ipairs(GetAllVehicles()) do
-        if DoesEntityExist(vehicle) and ambient(vehicle) then
-            local occupied = false
-            for seat = -1, 6 do
-                if GetPedInVehicleSeat(vehicle, seat) ~= 0 then
-                    occupied = true
-                    break
-                end
-            end
-            if not occupied then
-                DeleteEntity(vehicle)
-                removed = removed + 1
-            end
+        if DoesEntityExist(vehicle) and isAmbient(vehicle) and not occupied(vehicle) then
+            DeleteEntity(vehicle)
+            removed = removed + 1
         end
     end
 
     for _, ped in ipairs(GetAllPeds()) do
-        if DoesEntityExist(ped) and not playerPeds[ped] and ambient(ped) then
+        if DoesEntityExist(ped) and not playerPeds[ped] and isAmbient(ped) then
             DeleteEntity(ped)
             removed = removed + 1
         end
@@ -562,7 +551,7 @@ tsivtools.RegisterAction('prop.spawn', 'prop.spawn', function(src, payload)
         return
     end
 
-    if tsivtools.AntiCheat and tsivtools.AntiCheat.IsBlacklistedProp and tsivtools.AntiCheat.IsBlacklistedProp(model) then
+    if tsivtools.AntiCheat.IsBlacklistedProp(model) then
         tsivtools.Notify(src, ('%s is blacklisted !'):format(model), 'error')
         return
     end
@@ -741,7 +730,7 @@ RegisterCommand('prop', function(src, args)
         tsivtools.Notify(src, 'usage: /prop <model name>', 'error')
         return
     end
-    if tsivtools.AntiCheat and tsivtools.AntiCheat.IsBlacklistedProp and tsivtools.AntiCheat.IsBlacklistedProp(model) then
+    if tsivtools.AntiCheat.IsBlacklistedProp(model) then
         tsivtools.Notify(src, ('%s is blacklisted !'):format(model), 'error')
         return
     end

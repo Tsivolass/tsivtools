@@ -315,8 +315,7 @@ tsivtools.RegisterAction('vehicle.spawn', 'vehicle.spawn', function(src, payload
         return
     end
 
-    if tsivtools.AntiCheat and tsivtools.AntiCheat.IsBlacklistedVehicle
-        and tsivtools.AntiCheat.IsBlacklistedVehicle(model)
+    if tsivtools.AntiCheat.IsBlacklistedVehicle(model)
         and tsivtools.RankLevel(tsivtools.GetRank(src)) < tsivtools.RankLevel('superadmin') then
         tsivtools.Notify(src, ('%s is on the vehicle blacklist.'):format(model), 'error')
         return
@@ -382,7 +381,7 @@ local function cleanup(kind, origin, radius, skipOccupied)
         if DoesEntityExist(entity) then
             local keep = false
 
-            if kind == 'vehicles' and skipOccupied ~= false then
+            if kind == 'vehicles' and skipOccupied then
                 for seat = -1, 6 do
                     if GetPedInVehicleSeat(entity, seat) ~= 0 then
                         keep = true
@@ -396,8 +395,7 @@ local function cleanup(kind, origin, radius, skipOccupied)
             if not keep then
                 local inRange = true
                 if origin and radius then
-                    local ok, coords = pcall(GetEntityCoords, entity)
-                    inRange = ok and coords and distance(origin, coords) <= radius
+                    inRange = distance(origin, GetEntityCoords(entity)) <= radius
                 end
 
                 if inRange then

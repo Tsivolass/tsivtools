@@ -45,9 +45,7 @@ function tsivtools.FeatureEnabled(key)
 end
 
 function tsivtools.Module(key)
-    local modules = Config.anticheat and Config.anticheat.modules
-    if not modules then return true end
-    return modules[key] ~= false
+    return Config.anticheat.modules[key] ~= false
 end
 
 function tsivtools.HasPermission(rankName, key)

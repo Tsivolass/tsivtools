@@ -127,48 +127,25 @@ function Aim.PathMetrics(vectors, count, corridorDegrees)
     }
 end
 
-function Aim.AllowedStraightness(displacement, rules)
-    local small = rules.smallSnap or 5.0
-    local large = rules.largeSnap or 90.0
-    local high = rules.maxAllowed or 100.0
-    local low = rules.minAllowed or 82.0
-
-    local span = large - small
-    local ratio
-    if span <= 0 then
-        ratio = 1.0
-    else
-        ratio = (displacement - small) / span
+local function slide(displacement, rules, high, low)
+    local span = rules.largeSnap - rules.smallSnap
+    local ratio = 1.0
+    if span > 0 then
+        ratio = (displacement - rules.smallSnap) / span
     end
 
     if ratio < 0 then ratio = 0 elseif ratio > 1 then ratio = 1 end
-
-    local curve = rules.curve or 1.0
-    if curve ~= 1.0 then ratio = ratio ^ curve end
+    if rules.curve ~= 1.0 then ratio = ratio ^ rules.curve end
 
     return high - (high - low) * ratio
 end
 
+function Aim.AllowedStraightness(displacement, rules)
+    return slide(displacement, rules, rules.maxAllowed, rules.minAllowed)
+end
+
 function Aim.AllowedCorridor(displacement, rules)
-    local small = rules.smallSnap or 5.0
-    local large = rules.largeSnap or 90.0
-    local high = rules.maxCorridor or 100.0
-    local low = rules.minCorridor or 88.0
-
-    local span = large - small
-    local ratio
-    if span <= 0 then
-        ratio = 1.0
-    else
-        ratio = (displacement - small) / span
-    end
-
-    if ratio < 0 then ratio = 0 elseif ratio > 1 then ratio = 1 end
-
-    local curve = rules.curve or 1.0
-    if curve ~= 1.0 then ratio = ratio ^ curve end
-
-    return high - (high - low) * ratio
+    return slide(displacement, rules, rules.maxCorridor, rules.minCorridor)
 end
 
 function Aim.FindSnap(samples, count, idleStep, maxGap)

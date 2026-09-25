@@ -19,15 +19,13 @@ local scriptPopulationTypes = { [6] = true, [7] = true }
 
 local function isScriptSpawned(entity)
     if not settings.ignoreAmbientEntities then return true end
-    local ok, population = pcall(GetEntityPopulationType, entity)
-    if not ok or population == nil then return true end
-    return scriptPopulationTypes[population] == true
+    return scriptPopulationTypes[GetEntityPopulationType(entity)] == true
 end
 
 local alertedAt = {}
 
 local function alertAllowed(src, kind)
-    local cooldown = settings.alertCooldownSeconds or 0
+    local cooldown = settings.alertCooldownSeconds
     if cooldown <= 0 then return true, 0 end
 
     alertedAt[src] = alertedAt[src] or {}

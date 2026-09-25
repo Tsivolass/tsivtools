@@ -67,7 +67,7 @@ function Garage.Give(identifier, model, plate, props)
     if usingMysql() then
         local columns = { Config.Garage.ownerColumn, Config.Garage.plateColumn, Config.Garage.propsColumn }
         local values = { identifier, plate, json.encode(props) }
-        for column, value in pairs(Config.Garage.extraColumns or {}) do
+        for column, value in pairs(Config.Garage.extraColumns) do
             columns[#columns + 1] = column
             values[#values + 1] = value
         end

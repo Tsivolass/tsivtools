@@ -22,23 +22,7 @@ local function seconds()
 end
 
 local function moduleOn(key, rules)
-    if not settings.enabled then return false end
-    if not tsivtools.Module(key) then return false end
-    if rules and rules.enabled == false then return false end
-    return true
-end
-
-local function punish(src, action, reason, banLength, detail)
-    if tsivtools.AntiCheat and tsivtools.AntiCheat.Punish then
-        tsivtools.AntiCheat.Punish(src, action, reason, banLength, detail)
-    end
-end
-
-local function isExempt(src)
-    if tsivtools.AntiCheat and tsivtools.AntiCheat.IsExempt then
-        return tsivtools.AntiCheat.IsExempt(src)
-    end
-    return false
+    return settings.enabled and tsivtools.Module(key) and rules.enabled
 end
 
 local function strike(src, kind, limit, window)
@@ -47,14 +31,14 @@ local function strike(src, kind, limit, window)
     local now = seconds()
     local entry = strikes[src][kind]
 
-    if not entry or now - entry.first > (window or 60.0) then
+    if not entry or now - entry.first > window then
         entry = { count = 0, first = now }
         strikes[src][kind] = entry
     end
 
     entry.count = entry.count + 1
 
-    if limit and limit > 0 and entry.count >= limit then
+    if limit > 0 and entry.count >= limit then
         strikes[src][kind] = nil
         return entry.count, true
     end
@@ -74,31 +58,14 @@ local function inSet(set, hash)
     return set[flipped] ~= nil
 end
 
-local function safeCall(fn, fallback, ...)
-    if type(fn) ~= 'function' then return fallback end
-    local ok, value = pcall(fn, ...)
-    if not ok or value == nil then return fallback end
-    return value
-end
-
-local function isVisible(entity)
-    return safeCall(IsEntityVisible, true, entity) and true or false
-end
-
-local function inVehicle(ped)
-    local vehicle = safeCall(GetVehiclePedIsIn, 0, ped)
-    return vehicle ~= nil and vehicle ~= 0
-end
-
 local function vitality(ped)
-    local health = safeCall(GetEntityHealth, 0, ped) or 0
-    local armour = safeCall(GetPedArmour, 0, ped) or 0
-    return health + armour, health
+    local health = GetEntityHealth(ped)
+    return health + GetPedArmour(ped), health
 end
 
 local function refreshPeds()
     local now = seconds()
-    if now - pedCacheAt < (settings.pedCacheSeconds or 3.0) then return end
+    if now - pedCacheAt < settings.pedCacheSeconds then return end
     pedCacheAt = now
 
     local map = {}
@@ -150,12 +117,11 @@ local function aimOffset(shooter, victim)
     local to   = GetPlayerPed(victim)
     if not from or from == 0 or not to or to == 0 then return nil end
 
-    if rules.skipInVehicle and inVehicle(from) then return nil end
-    if rules.requireVisible and not isVisible(to) then return nil end
+    if rules.skipInVehicle and GetVehiclePedIsIn(from, false) ~= 0 then return nil end
+    if rules.requireVisible and not IsEntityVisible(to) then return nil end
 
     local origin = GetEntityCoords(from)
     local target = GetEntityCoords(to)
-    if not origin or not target then return nil end
 
     local dx = target.x - origin.x
     local dy = target.y - origin.y
@@ -180,13 +146,13 @@ end
 function Detections.CheckSilentAim(src, victims, weapon)
     local rules = settings.silentAim
     if not moduleOn('silentAim', rules) then return end
-    if sessionAge(src) < (rules.joinGrace or 0) then return end
+    if sessionAge(src) < rules.joinGrace then return end
 
     local now = GetGameTimer()
-    if lastShot[src] and now - lastShot[src] < (rules.sampleCooldownMs or 0) then return end
+    if lastShot[src] and now - lastShot[src] < rules.sampleCooldownMs then return end
 
     for _, victim in ipairs(victims) do
-        if victim ~= src and not isExempt(victim) then
+        if victim ~= src and not tsivtools.AntiCheat.IsExempt(victim) then
             local off, distance = aimOffset(src, victim)
             if off then
                 lastShot[src] = now
@@ -197,7 +163,7 @@ function Detections.CheckSilentAim(src, victims, weapon)
                 if off > allowed and lateral > rules.lateralTolerance then
                     local count, reached = strike(src, 'silentaim', rules.strikes, rules.strikeWindow)
                     if reached then
-                        punish(src, rules.action, rules.reason, rules.banLength, {
+                        tsivtools.AntiCheat.Punish(src, rules.action, rules.reason, rules.banLength, {
                             ('victim    : %s (id %s)'):format(tsivtools.GetName(victim), victim),
                             ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
                             ('distance  : %.1f m'):format(distance),
@@ -219,15 +185,15 @@ function Detections.CheckPing(src)
     local rules = settings.pingGate
     if not moduleOn('pingGate', rules) then return false end
     if rules.action == 'off' then return false end
-    if (rules.maxPing or 0) <= 0 then return false end
+    if rules.maxPing <= 0 then return false end
 
-    local ping = GetPlayerPing(src) or 0
+    local ping = GetPlayerPing(src)
     if ping <= rules.maxPing then return false end
 
     local count, reached = strike(src, 'ping', rules.strikes, rules.window)
 
     if rules.action == 'kick' or reached then
-        punish(src, rules.action == 'block' and 'kick' or rules.action, rules.reason, rules.banLength, {
+        tsivtools.AntiCheat.Punish(src, rules.action == 'block' and 'kick' or rules.action, rules.reason, rules.banLength, {
             ('ping      : %d ms, limit is %d ms'):format(ping, rules.maxPing),
             ('blocked   : %d shot(s) in %.0f second(s)'):format(count, rules.window),
         })
@@ -243,15 +209,15 @@ function Detections.CheckGodmode(src, victims, weapon)
 
     for _, victim in ipairs(victims) do
         if victim ~= src and not pending[victim] then
-            local allowed = (rules.skipExempt and isExempt(victim)) or tsivtools.Can(victim, 'self.godmode')
-            if not allowed and sessionAge(victim) >= (rules.joinGrace or 0) then
-                local ped = GetPlayerPed(victim)
+            local allowed = (rules.skipExempt and tsivtools.AntiCheat.IsExempt(victim)) or tsivtools.Can(victim, 'self.godmode')
+            local ped = GetPlayerPed(victim)
+            if not allowed and ped ~= 0 and sessionAge(victim) >= rules.joinGrace then
                 local before, health = vitality(ped)
 
-                if ped and ped ~= 0 and health > 0 then
+                if health > 0 then
                     pending[victim] = true
 
-                    SetTimeout(rules.checkDelayMs or 900, function()
+                    SetTimeout(rules.checkDelayMs, function()
                         pending[victim] = nil
                         if not GetPlayerName(victim) then return end
                         if GetPlayerPed(victim) ~= ped then return end
@@ -262,10 +228,10 @@ function Detections.CheckGodmode(src, victims, weapon)
                         local count, reached = strike(victim, 'godmode', rules.strikes, rules.strikeWindow)
                         if not reached then return end
 
-                        punish(victim, rules.action, rules.reason, rules.banLength, {
+                        tsivtools.AntiCheat.Punish(victim, rules.action, rules.reason, rules.banLength, {
                             ('shot by   : %s (id %s)'):format(tsivtools.GetName(src), src),
                             ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
-                            ('health    : %d before, %d after %d ms'):format(before, after, rules.checkDelayMs or 900),
+                            ('health    : %d before, %d after %d ms'):format(before, after, rules.checkDelayMs),
                             ('strikes   : %d in %.0f second(s)'):format(count, rules.strikeWindow),
                         })
                     end)
@@ -289,13 +255,13 @@ function Detections.CheckMelee(src, victims, weapon)
     local now = GetGameTimer()
     local problem = nil
 
-    if now - state.at < (rules.minIntervalMs or 0) then
+    if now - state.at < rules.minIntervalMs then
         problem = ('%d ms since the last hit, minimum is %d ms'):format(now - state.at, rules.minIntervalMs)
     end
 
     for _, victim in ipairs(victims) do
         local last = state.victims[victim]
-        if not problem and last and now - last < (rules.victimIntervalMs or 0) then
+        if not problem and last and now - last < rules.victimIntervalMs then
             problem = ('hit %s again after %d ms, minimum is %d ms'):format(
                 tsivtools.GetName(victim), now - last, rules.victimIntervalMs)
         end
@@ -308,14 +274,14 @@ function Detections.CheckMelee(src, victims, weapon)
     end
 
     local distinct, unique = 0, {}
-    for _, victim in ipairs(recent or {}) do
+    for _, victim in ipairs(recent) do
         if not unique[victim] then
             unique[victim] = true
             distinct = distinct + 1
         end
     end
 
-    if not problem and distinct >= (rules.multiTargets or 99) then
+    if not problem and distinct >= rules.multiTargets then
         problem = ('%d different players hit within %.1f second(s)'):format(distinct, rules.multiWindow)
     end
 
@@ -325,14 +291,14 @@ function Detections.CheckMelee(src, victims, weapon)
 
     local count, reached = strike(src, 'punch', rules.strikes, rules.strikeWindow)
     if reached then
-        punish(src, rules.action, rules.reason, rules.banLength, {
+        tsivtools.AntiCheat.Punish(src, rules.action, rules.reason, rules.banLength, {
             ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
             ('problem   : %s'):format(problem),
             ('strikes   : %d in %.0f second(s)'):format(count, rules.strikeWindow),
         })
     end
 
-    return rules.block ~= false
+    return rules.block
 end
 
 AddEventHandler('weaponDamageEvent', function(sender, data)
@@ -348,7 +314,7 @@ AddEventHandler('weaponDamageEvent', function(sender, data)
     local meleeOn  = moduleOn('punch', settings.punch)
     if not (pingOn or silentOn or godOn or meleeOn) then return end
 
-    local exempt = isExempt(src)
+    local exempt = tsivtools.AntiCheat.IsExempt(src)
 
     if pingOn and not exempt and Detections.CheckPing(src) then
         CancelEvent()
@@ -410,11 +376,11 @@ CreateThread(function()
 
     while true do
         local rules = settings.heartbeat
-        Wait(math.max(5, tonumber(rules.intervalSeconds) or 15) * 1000)
+        Wait(math.max(5, rules.intervalSeconds) * 1000)
 
         if moduleOn('heartbeat', rules) then
             local now = seconds()
-            local limit = rules.intervalSeconds * ((rules.missTolerance or 3) + 1)
+            local limit = rules.intervalSeconds * (rules.missTolerance + 1)
 
             for _, raw in ipairs(GetPlayers()) do
                 local src = tonumber(raw)
@@ -422,15 +388,15 @@ CreateThread(function()
 
                 if not entry then
                     Detections.StartHeartbeat(src)
-                elseif now - entry.since > (rules.graceSeconds or 120)
+                elseif now - entry.since > rules.graceSeconds
                     and now - entry.at > limit
-                    and not isExempt(src) then
+                    and not tsivtools.AntiCheat.IsExempt(src) then
                     beats[src] = nil
                     tokens[src] = nil
-                    punish(src, rules.action, rules.reason, rules.banLength, {
+                    tsivtools.AntiCheat.Punish(src, rules.action, rules.reason, rules.banLength, {
                         ('last beat : %.0f second(s) ago'):format(now - entry.at),
                         ('expected  : every %d second(s), %d missed allowed'):format(
-                            rules.intervalSeconds, rules.missTolerance or 3),
+                            rules.intervalSeconds, rules.missTolerance),
                     })
                 end
             end
@@ -456,7 +422,7 @@ AddEventHandler('playerDropped', function()
     pedCacheAt = 0
 
     for _, state in pairs(melee) do
-        if state.victims then state.victims[src] = nil end
+        state.victims[src] = nil
     end
 end)
 
