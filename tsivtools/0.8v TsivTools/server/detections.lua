@@ -364,6 +364,7 @@ RegisterNetEvent(tsivtools.Events.beat, function(token)
 
     local entry = beats[src]
     if not entry then return end
+    if seconds() - entry.at < 1.0 then return end
     if rules.useToken and token ~= tokens[src] then return end
 
     entry.at = seconds()

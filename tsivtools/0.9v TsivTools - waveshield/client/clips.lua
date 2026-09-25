@@ -56,16 +56,6 @@ local function relay(request)
     end
 end
 
-local function direct(request)
-    for _ = 1, request.frames do
-        exports['screenshot-basic']:requestScreenshotUpload(
-            request.url, 'files[0]',
-            { encoding = 'jpg', quality = request.quality },
-            function() end)
-        Wait(request.intervalMs)
-    end
-end
-
 RegisterNetEvent(tsivtools.Events.clipRequest, function(request)
     if type(request) ~= 'table' then return end
     if not available() then return end
@@ -77,11 +67,7 @@ RegisterNetEvent(tsivtools.Events.clipRequest, function(request)
     CreateThread(function()
         if request.freeze then freeze(true) end
 
-        if request.mode == 'direct' and request.url then
-            direct(request)
-        else
-            relay(request)
-        end
+        relay(request)
 
         if request.freeze then freeze(false) end
     end)

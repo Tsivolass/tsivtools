@@ -236,6 +236,14 @@ Config.garage = {
 }
 
 Config.anticheat = {
+    forgedEvents = {
+        enabled   = true,
+        action    = 'ban',
+        strikes   = 2,
+        banLength = 0,
+        reason    = 'Sent staff menu events without a staff rank',
+    },
+
     enabled = true,
 
     modules = {
@@ -516,7 +524,6 @@ Config.anticheat = {
 
     clips = {
         enabled        = true,
-        mode           = 'relay',
         seconds        = 5,
         frames         = 3,
         quality        = 0.35,

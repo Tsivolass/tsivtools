@@ -52,8 +52,9 @@ function tsivtools.Discord.Send(category, record)
     local settings = Config.Logging.discord
     if not settings.enabled then return end
 
-    local url = settings.webhooks[category]
-    if not url or url == '' then return end
+    local url = GetConvar('tsivtoolswebhook' .. category, '')
+    if url == '' then url = settings.webhooks[category] or '' end
+    if url == '' then return end
 
     local fields = {}
     if record.actor ~= '' then
@@ -97,3 +98,12 @@ function tsivtools.Discord.Send(category, record)
         },
     }
 end
+
+CreateThread(function()
+    for category, url in pairs(Config.Logging.discord.webhooks) do
+        if url ~= '' then
+            print(('%sthe %s discord webhook is written in config.lua, which every player downloads. Move it to server.cfg: set tsivtoolswebhook%s "<url>"')
+                :format(Config.ConsolePrefix, category, category))
+        end
+    end
+end)

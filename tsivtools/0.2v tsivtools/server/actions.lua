@@ -139,7 +139,7 @@ local function simpleTargetAction(action, permission, command, message, logLine,
             return
         end
 
-        run(target, command, payload)
+        run(target, command, {})
         tsivtools.Notify(src, message:format(tsivtools.GetName(target)), 'success')
         Logs.Staff(src, logLine:format(tsivtools.Describe(target)), target)
     end)
@@ -581,6 +581,10 @@ RegisterCommand('bring', function(src, args)
         tsivtools.Notify(src, '/bring <id>', 'error')
         return
     end
+    if not tsivtools.OutranksTarget(src, target) then
+        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
+        return
+    end
 
     local coords = pedCoords(src)
     if coords then
@@ -622,6 +626,10 @@ RegisterCommand('slay', function(src, args)
     local target = tsivtools.ResolveTarget(args[1])
     if not target then
         tsivtools.Notify(src, '/slay <id>', 'error')
+        return
+    end
+    if not tsivtools.OutranksTarget(src, target) then
+        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
         return
     end
     run(target, 'slay', {})

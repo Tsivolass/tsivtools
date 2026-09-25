@@ -140,7 +140,7 @@ local function simpleTargetAction(action, permission, command, message, logLine)
             return
         end
 
-        run(target, command, payload)
+        run(target, command, {})
         tsivtools.Notify(src, message:format(tsivtools.GetName(target)), 'success')
         Logs.Staff(src, logLine:format(tsivtools.Describe(target)), target)
     end)
@@ -488,8 +488,18 @@ end
 
 tsivtools.TrafficState = trafficState
 
+local trafficSentAt = {}
+
 AddEventHandler(tsivtools.Events.ready, function()
-    run(source, 'setTraffic', trafficState())
+    local src = source
+    local now = GetGameTimer()
+    if trafficSentAt[src] and now - trafficSentAt[src] < 5000 then return end
+    trafficSentAt[src] = now
+    run(src, 'setTraffic', trafficState())
+end)
+
+AddEventHandler('playerDropped', function()
+    trafficSentAt[source] = nil
 end)
 
 tsivtools.RegisterAction('world.traffic', 'world.traffic', function(src, payload)
@@ -673,6 +683,10 @@ RegisterCommand('bring', function(src, args)
         tsivtools.Notify(src, '/bring <id>', 'error')
         return
     end
+    if not tsivtools.OutranksTarget(src, target) then
+        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
+        return
+    end
 
     local coords = pedCoords(src)
     if coords then
@@ -714,6 +728,10 @@ RegisterCommand('slay', function(src, args)
     local target = tsivtools.ResolveTarget(args[1])
     if not target then
         tsivtools.Notify(src, 'usage: /slay <server id>', 'error')
+        return
+    end
+    if not tsivtools.OutranksTarget(src, target) then
+        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
         return
     end
     run(target, 'slay', {})

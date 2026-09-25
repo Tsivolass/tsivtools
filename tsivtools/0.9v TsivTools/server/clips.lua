@@ -48,14 +48,18 @@ end
 Clips.Decode = b64decode
 
 local function webhookUrl()
+    local value = GetConvar(settings.webhookConvar, '')
+    if value ~= '' then return value end
     if settings.webhook ~= '' then return settings.webhook end
-
-    if settings.webhookConvar ~= '' then
-        local value = GetConvar(settings.webhookConvar, '')
-        if value ~= '' then return value end
-    end
     return nil
 end
+
+CreateThread(function()
+    if settings.webhook ~= '' then
+        print(('%sthe ban clip webhook is written in config.lua, which every player downloads. Move it to server.cfg: set %s "<url>"')
+            :format(Config.consoleprefix, settings.webhookConvar))
+    end
+end)
 
 Clips.Webhook = webhookUrl
 
@@ -90,14 +94,6 @@ local function multipart(url, payload, files)
     end, 'POST', table.concat(parts), {
         ['Content-Type'] = ('multipart/form-data; boundary=%s'):format(boundary),
     })
-end
-
-local function postJson(url, payload)
-    PerformHttpRequest(url, function(status)
-        if status ~= 200 and status ~= 204 then
-            print(('%sclip webhook returned %s'):format(Config.consoleprefix, tostring(status)))
-        end
-    end, 'POST', json.encode(payload), { ['Content-Type'] = 'application/json' })
 end
 
 local function embedFor(context, framesFound)
@@ -136,7 +132,7 @@ local function finish(id)
         local frame = entry.frames[index]
         if frame and frame.complete then
             local data = b64decode(table.concat(frame.parts))
-            if #data > 0 then
+            if data:sub(1, 3) == '\255\216\255' then
                 files[#files + 1] = { name = ('clip_%d_%02d.jpg'):format(id, index), data = data }
             end
         end
@@ -184,25 +180,11 @@ function Clips.Before(src, reason, done)
 
     TriggerClientEvent(tsivtools.Events.clipRequest, src, {
         id = id,
-        mode = settings.mode,
         frames = frames,
         intervalMs = math.floor(span * 1000 / frames),
         quality = settings.quality,
         freeze = settings.freezeTarget,
-        url = settings.mode == 'direct' and url or nil,
     })
-
-    if settings.mode == 'direct' then
-        postJson(url, embedFor(context, frames))
-        SetTimeout(math.max(1000, settings.holdMs), function()
-            local entry = captures[id]
-            if entry then
-                captures[id] = nil
-                release(entry)
-            end
-        end)
-        return
-    end
 
     SetTimeout(math.max(1000, settings.holdMs), function()
         finish(id)

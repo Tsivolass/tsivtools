@@ -177,6 +177,35 @@ The full key list is in [docs/CUSTOMISING.md](docs/CUSTOMISING.md).
 
 ---
 
+## Security
+
+Assume a cheater has dumped every client file, `config.lua` included, and can
+fire any event with any payload. Server files are never sent to players, so
+everything that matters is decided there:
+
+- Every menu action and request is checked against the sender's rank on the
+  server. Nothing the client says about its own rank is trusted.
+- Somebody with no staff rank who fires a staff event gets an alert the first
+  time and `Config.anticheat.forgedEvents.action` (a ban by default) the second,
+  because the real menu never sends one without a rank.
+- Kick, ban, slay, freeze, bring, warn, tags, the watchlist and set rank only
+  work on players ranked below you, so a compromised mod cannot touch an admin.
+- Offline bans from the watchlist use the identifiers the server stored, never
+  a list sent by the client.
+- Events are rate limited per player, and staff payloads are never passed on to
+  another player's client.
+- Webhooks and API keys belong in `server.cfg` convars (`set`, not `setr`),
+  because `config.lua` is readable by every player. The server warns on start if
+  one is still in `config.lua`. Ban clips only ever travel through the server,
+  and only real JPEG frames are posted.
+
+The client side checks (speed, health, heartbeat, aim reports) can be switched
+off or faked by anyone running their own Lua, which is why they only raise
+alerts or feed the confidence score, and why the server cross-checks aim
+reports against what it saw itself.
+
+---
+
 ## How the two aim checks work
 
 Both live in 0.9v. `shared/aim.lua` holds the geometry, so the client and the

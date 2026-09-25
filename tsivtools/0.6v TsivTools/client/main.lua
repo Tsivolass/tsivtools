@@ -352,7 +352,7 @@ local function buildPlayers(menu, player)
                                 elseif can('player.ban') then
                                     actions:Button('Ban', 'Create a permanent ban from stored identifiers.', function()
                                         ask('Ban reason', 150, function(reason)
-                                            tsivtools.Action('watchlist.ban', { identifiers = entry.identifiers, name = entry.name, reason = reason })
+                                            tsivtools.Action('watchlist.ban', { identifier = entry.identifier, reason = reason })
                                         end)
                                     end)
                                 end

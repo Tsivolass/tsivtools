@@ -257,6 +257,7 @@ RegisterNetEvent('tsivtools:security:monitor', function(target, minutes)
     target = tsivtools.ResolveTarget(target)
     minutes = tsivtools.ToInt(minutes, 1, Config.security.maxMonitorMinutes)
     if not target or not minutes then tsivtools.Notify(src, 'Invalid player or monitor duration.', 'error'); return end
+    if not tsivtools.OutranksTarget(src, target) then tsivtools.Notify(src, 'That player is your rank or higher !', 'error'); return end
     Logs.Staff(src, ('Started a %d minute security monitor for %s'):format(minutes, tsivtools.Describe(target)), target)
     monitors[target] = now() + minutes * 60
     tsivtools.Notify(src, ('Monitoring %s for %d minute(s).'):format(tsivtools.GetName(target), minutes), 'success')

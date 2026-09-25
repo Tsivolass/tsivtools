@@ -149,7 +149,7 @@ local function simpleTargetAction(action, permission, command, message, logLine,
             return
         end
 
-        run(target, command, payload)
+        run(target, command, {})
         tsivtools.Notify(src, message:format(tsivtools.GetName(target)), 'success')
         Logs.Staff(src, logLine:format(tsivtools.Describe(target)), target)
     end)

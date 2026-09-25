@@ -123,6 +123,11 @@ function tsivtools.Can(src, key)
     return tsivtools.HasPermission(rank, key)
 end
 
+function tsivtools.OutranksTarget(src, target)
+    if src == 0 or src == target then return true end
+    return tsivtools.RankLevel(tsivtools.GetRank(src)) > tsivtools.RankLevel(tsivtools.GetRank(target))
+end
+
 function tsivtools.GetStaff(minRank)
     local minLevel = minRank and tsivtools.RankLevel(minRank) or 1
     local out = {}
@@ -199,6 +204,47 @@ function tsivtools.RegisterRequest(name, permission, handler)
     requests[name] = { permission = permission, handler = handler }
 end
 
+local forged = {}
+
+local function forgedEvent(src, name)
+    local rules = Config.AntiCheat.forgedEvents
+    if not rules.enabled then return end
+
+    local now = GetGameTimer() / 1000.0
+    local entry = forged[src]
+    if not entry or now - entry.first > 600.0 then
+        entry = { first = now, count = 0 }
+        forged[src] = entry
+    end
+    entry.count = entry.count + 1
+
+    local detail = {
+        ('event     : %s'):format(tsivtools.SafeString(name, 40)),
+        ('attempts  : %d in %.0f second(s)'):format(entry.count, now - entry.first),
+        'note      : the menu never sends this without a staff rank',
+    }
+    if entry.count >= rules.strikes then
+        forged[src] = nil
+        tsivtools.AntiCheat.Punish(src, rules.action, rules.reason, rules.banLength, detail)
+    elseif entry.count == 1 then
+        tsivtools.AntiCheat.Punish(src, 'alert', rules.reason, 0, detail)
+    end
+end
+
+local protected = {
+    ['player.bring']            = true,
+    ['player.slay']             = true,
+    ['player.freeze']           = true,
+    ['player.kick']             = true,
+    ['player.warn']             = true,
+    ['player.setrank']          = true,
+    ['player.ban']              = true,
+    ['player.tag']              = true,
+    ['cleanup.player']          = true,
+    ['watchlist.add']           = true,
+    ['security.waveshield.ban'] = true,
+}
+
 local function allowRate(src)
     local now = GetGameTimer() / 1000.0
     local bucket = rateLimit[src]
@@ -222,6 +268,11 @@ RegisterNetEvent(tsivtools.Events.action, function(name, payload)
     if type(name) ~= 'string' then return end
     if not allowRate(src) then return end
 
+    if not tsivtools.GetRank(src) then
+        forgedEvent(src, name)
+        return
+    end
+
     local entry = actions[name]
     if not entry then
         print(('%s%s asked for the unknown action "%s"'):format(Config.ConsolePrefix, tsivtools.Describe(src), tsivtools.SafeString(name, 40)))
@@ -235,7 +286,14 @@ RegisterNetEvent(tsivtools.Events.action, function(name, payload)
         return
     end
 
-    local ok, err = pcall(entry.handler, src, type(payload) == 'table' and payload or {})
+    payload = type(payload) == 'table' and payload or {}
+    local target = protected[name] and tsivtools.ResolveTarget(payload.target)
+    if target and not tsivtools.OutranksTarget(src, target) then
+        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
+        return
+    end
+
+    local ok, err = pcall(entry.handler, src, payload)
     if not ok then
         print(('%saction "%s" failed: %s'):format(Config.ConsolePrefix, name, err))
         tsivtools.Notify(src, 'That action failed! report to dev !!', 'error')
@@ -246,6 +304,12 @@ RegisterNetEvent(tsivtools.Events.request, function(name, requestId, payload)
     local src = source
     if type(name) ~= 'string' or type(requestId) ~= 'number' then return end
     if not allowRate(src) then return end
+
+    if not tsivtools.GetRank(src) then
+        forgedEvent(src, name)
+        TriggerClientEvent(tsivtools.Events.response, src, requestId, nil)
+        return
+    end
 
     local entry = requests[name]
     if not entry then return end
@@ -298,6 +362,7 @@ AddEventHandler('playerDropped', function()
     local src = source
     rankCache[src] = nil
     rateLimit[src] = nil
+    forged[src] = nil
 end)
 
 RegisterCommand('tsivtools_whoami', function(src, args)
