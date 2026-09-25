@@ -6,7 +6,7 @@ for _, weapon in ipairs(settings.blacklistedWeapons or {}) do
 end
 
 local function report(kind, detail)
-    TriggerServerEvent(TSIV.Events.report, kind, detail)
+    TriggerServerEvent(tsivtools.Events.report, kind, detail)
 end
 
 local lastCoords = nil
@@ -68,7 +68,7 @@ CreateThread(function()
         Wait((settings.interval or 5) * 1000)
 
         local ped = PlayerPedId()
-        local state = TSIV.State
+        local state = tsivtools.State
         if state.noclip or state.spectating then
             lastCoords = nil
             lastCheck = 0

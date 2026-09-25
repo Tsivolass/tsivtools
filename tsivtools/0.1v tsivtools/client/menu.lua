@@ -1,6 +1,6 @@
-TSIV.Menu = {}
+tsivtools.Menu = {}
 
-local Menu = TSIV.Menu
+local Menu = tsivtools.Menu
 local Item = {}
 Item.__index = Item
 
@@ -435,7 +435,7 @@ CreateThread(function()
     end
 end)
 
-function TSIV.Input(title, default, maxLength)
+function tsivtools.Input(title, default, maxLength)
     inputLocked = true
     AddTextEntry('TSIVTOOLS_INPUT', title or 'Enter a value')
     DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', (maxLength or 64) + 1)
@@ -460,8 +460,8 @@ function TSIV.Input(title, default, maxLength)
     return result
 end
 
-function TSIV.InputNumber(title, default, maxLength)
-    local value = TSIV.Input(title, default and tostring(default) or '', maxLength or 10)
+function tsivtools.InputNumber(title, default, maxLength)
+    local value = tsivtools.Input(title, default and tostring(default) or '', maxLength or 10)
     if value == nil then return nil end
     return tonumber(value)
 end

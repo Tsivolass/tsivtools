@@ -21,7 +21,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify(body || {})
-        }).catch(function () {  });
+        }).catch(function () {});
     }
 
     function updateCounter() {

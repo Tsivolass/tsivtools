@@ -1,8 +1,8 @@
-TSIV.Aimbot = {}
+tsivtools.Aimbot = {}
 
-local Aimbot = TSIV.Aimbot
+local Aimbot = tsivtools.Aimbot
 local rules = Config.anticheat.aimbot or { enabled = false }
-local Aim = TSIV.Aim
+local Aim = tsivtools.Aim
 
 local reports = {}
 local accepted = {}
@@ -17,19 +17,19 @@ end
 
 local function active()
     if not Config.anticheat.enabled then return false end
-    if not TSIV.Module('aimbot') then return false end
+    if not tsivtools.Module('aimbot') then return false end
     return rules.enabled ~= false
 end
 
 local function flag(src, module, points, reason, detail)
     if rules.action == 'confidence' or rules.action == nil then
-        TSIV.Confidence.Add(src, module, points, reason, detail)
+        tsivtools.Confidence.Add(src, module, points, reason, detail)
         return
     end
-    TSIV.AntiCheat.Punish(src, rules.action, reason, rules.banLength or 0, detail)
+    tsivtools.AntiCheat.Punish(src, rules.action, reason, rules.banLength or 0, detail)
 end
 
-RegisterNetEvent(TSIV.Events.aim, function(packed, pad)
+RegisterNetEvent(tsivtools.Events.aim, function(packed, pad)
     local src = source
     if not active() then return end
     if type(packed) ~= 'table' then return end
@@ -121,13 +121,13 @@ end
 function Aimbot.Missing(src)
     local gate = rules.missing
     if not gate or gate.enabled == false then return end
-    if TSIV.AntiCheat.IsExempt(src) then return end
+    if tsivtools.AntiCheat.IsExempt(src) then return end
 
     missing[src] = (missing[src] or 0) + 1
     if missing[src] < (gate.shots or 12) then return end
 
     missing[src] = 0
-    TSIV.AntiCheat.Punish(src, gate.action or 'kick',
+    tsivtools.AntiCheat.Punish(src, gate.action or 'kick',
         gate.reason or 'TsivTools aim module is not answering', gate.banLength or 0, {
             ('shots     : %d fired with no aim data'):format(gate.shots or 12),
             'note      : the client module was blocked or stopped',
@@ -181,8 +181,8 @@ function Aimbot.Check(src, victim, aimX, aimY, aimZ, weapon)
     local allowedCorridor = math.min(100.0, Aim.AllowedCorridor(delta, rules) * scale)
 
     local detail = {
-        ('victim    : %s (id %s)'):format(TSIV.GetName(victim), victim),
-        ('weapon    : %s'):format(TSIV.AntiCheat.ModelLabel(weapon)),
+        ('victim    : %s (id %s)'):format(tsivtools.GetName(victim), victim),
+        ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
         ('distance  : %.1f m'):format(distance),
         ('snap dx   : %.1f degrees over %d ms'):format(delta, metrics.durationMs),
         ('path      : %.1f degrees travelled'):format(metrics.pathLength),

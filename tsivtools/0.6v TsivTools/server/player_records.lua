@@ -1,28 +1,28 @@
-TSIV.PlayerRecords = {}
+tsivtools.PlayerRecords = {}
 
-local Records = TSIV.PlayerRecords
-local Storage = TSIV.Storage
-local Logs = TSIV.Logs
-local Bans = TSIV.Bans
+local Records = tsivtools.PlayerRecords
+local Storage = tsivtools.Storage
+local Logs = tsivtools.Logs
+local Bans = tsivtools.Bans
 
 local units = { m = 60, h = 3600, d = 86400, w = 604800, [''] = 60 }
 
 local function permitted(src, key)
-    if src == 0 or TSIV.Can(src, key) then return true end
-    TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
+    if src == 0 or tsivtools.Can(src, key) then return true end
+    tsivtools.Notify(src, 'You dont have permission to do that !!', 'error')
     return false
 end
 
 local function actor(src)
-    return src ~= 0 and TSIV.GetPrimaryIdentifier(src) or 'console'
+    return src ~= 0 and tsivtools.GetPrimaryIdentifier(src) or 'console'
 end
 
 local function actorName(src)
-    return src ~= 0 and TSIV.GetName(src) or 'console'
+    return src ~= 0 and tsivtools.GetName(src) or 'console'
 end
 
 local function duration(value)
-    value = TSIV.SafeString(value, 24):lower()
+    value = tsivtools.SafeString(value, 24):lower()
     if value == '' or value == 'permanent' or value == 'perm' then return 0 end
     local amount, unit = value:match('^(%d+)%s*([mhdw]?)$')
     amount = tonumber(amount)
@@ -47,26 +47,26 @@ local function findWatch(identifier)
 end
 
 function Records.AddWatch(target, note, by)
-    local ids = TSIV.GetIdentifiers(target)
-    local identifier = TSIV.GetPrimaryIdentifier(target)
+    local ids = tsivtools.GetIdentifiers(target)
+    local identifier = tsivtools.GetPrimaryIdentifier(target)
     if findWatch(identifier) then return false end
 
     local entry = {
         identifier = identifier,
         identifiers = ids,
-        name = TSIV.GetName(target),
-        note = TSIV.SafeString(note, 200),
-        added_by = by,
-        created_at = os.time(),
+        name = tsivtools.GetName(target),
+        note = tsivtools.SafeString(note, 200),
+        addedby = by,
+        createdat = os.time(),
         active = 1,
     }
 
     if Storage.UsingMysql() then
         Storage.Insert(([[
-            INSERT INTO `%s` (identifier, identifiers, name, note, added_by, created_at, active)
+            INSERT INTO `%s` (identifier, identifiers, name, note, addedby, createdat, active)
             VALUES (?, ?, ?, ?, ?, ?, 1)
         ]]):format(Config.Database.watchlistTable), {
-            entry.identifier, json.encode(ids), entry.name, entry.note, entry.added_by, entry.created_at,
+            entry.identifier, json.encode(ids), entry.name, entry.note, entry.addedby, entry.createdat,
         })
     else
         local entries = Storage.Get('watchlist')
@@ -78,7 +78,7 @@ function Records.AddWatch(target, note, by)
 
     Logs.Write({
         category = 'staff',
-        message = ('Added %s to the watchlist'):format(TSIV.Describe(target)),
+        message = ('Added %s to the watchlist'):format(tsivtools.Describe(target)),
         actor = by,
         actorName = by,
         target = identifier,
@@ -105,7 +105,7 @@ function Records.Watchlist(onlineOnly)
     local rows
     if Storage.UsingMysql() then
         rows = Storage.Query(([[
-            SELECT id, identifier, identifiers, name, note, added_by, created_at
+            SELECT id, identifier, identifiers, name, note, addedby, createdat
             FROM `%s` WHERE active = 1 ORDER BY id DESC
         ]]):format(Config.Database.watchlistTable)) or {}
     else
@@ -119,7 +119,7 @@ function Records.Watchlist(onlineOnly)
     local online = {}
     for _, raw in ipairs(GetPlayers()) do
         local id = tonumber(raw)
-        online[TSIV.GetPrimaryIdentifier(id)] = id
+        online[tsivtools.GetPrimaryIdentifier(id)] = id
     end
 
     local out = {}
@@ -141,20 +141,20 @@ end
 
 local function addTag(src, target, expires, content)
     local tag = {
-        identifier = TSIV.GetPrimaryIdentifier(target),
-        name = TSIV.GetName(target),
+        identifier = tsivtools.GetPrimaryIdentifier(target),
+        name = tsivtools.GetName(target),
         content = content,
-        created_at = os.time(),
-        expires_at = expires,
-        added_by = actor(src),
+        createdat = os.time(),
+        expiresat = expires,
+        addedby = actor(src),
     }
 
     if Storage.UsingMysql() then
         local id = Storage.Insert(([[
-            INSERT INTO `%s` (identifier, name, content, created_at, expires_at, added_by)
+            INSERT INTO `%s` (identifier, name, content, createdat, expiresat, addedby)
             VALUES (?, ?, ?, ?, ?, ?)
         ]]):format(Config.Database.tagsTable), {
-            tag.identifier, tag.name, tag.content, tag.created_at, tag.expires_at, tag.added_by,
+            tag.identifier, tag.name, tag.content, tag.createdat, tag.expiresat, tag.addedby,
         })
         if not id then return false end
     else
@@ -165,7 +165,7 @@ local function addTag(src, target, expires, content)
         Storage.Flush('tags')
     end
 
-    Logs.Staff(src, ('Added player tag to %s'):format(TSIV.Describe(target)), target,
+    Logs.Staff(src, ('Added player tag to %s'):format(tsivtools.Describe(target)), target,
         { content = content, expires = expires })
     return true
 end
@@ -173,28 +173,28 @@ end
 local function tagPlayer(src, target, durationText, contentText)
     local seconds = duration(durationText)
     if not seconds then
-        TSIV.Notify(src, 'Use a duration like 30m, 2h, 7d, or permanent.', 'error')
+        tsivtools.Notify(src, 'Use a duration like 30m, 2h, 7d, or permanent.', 'error')
         return
     end
 
-    local content = TSIV.SafeString(contentText, 160)
+    local content = tsivtools.SafeString(contentText, 160)
     if content == '' then
-        TSIV.Notify(src, 'Tag content is required.', 'error')
+        tsivtools.Notify(src, 'Tag content is required.', 'error')
         return
     end
 
     if addTag(src, target, seconds > 0 and os.time() + seconds or 0, content) then
-        TSIV.Notify(src, 'Player tag added.', 'success')
+        tsivtools.Notify(src, 'Player tag added.', 'success')
     else
-        TSIV.Notify(src, 'The player tag could not be stored. Check the server console.', 'error')
+        tsivtools.Notify(src, 'The player tag could not be stored. Check the server console.', 'error')
     end
 end
 
 local function playerRows(identifier, limit)
     if Storage.UsingMysql() then
         return Storage.Query(([[
-            SELECT id, category, created_at AS at, actor, actor_name AS actorName,
-                   target, target_name AS targetName, message, data
+            SELECT id, category, createdat AS at, actor, actorname AS actorName,
+                   target, targetname AS targetName, message, data
             FROM `%s` WHERE actor = ? OR target = ?
             ORDER BY id DESC LIMIT %d
         ]]):format(Config.Database.logTable, limit), { identifier, identifier }) or {}
@@ -215,15 +215,15 @@ end
 local function playerTags(identifier)
     if Storage.UsingMysql() then
         return Storage.Query(([[
-            SELECT content, created_at AS at, expires_at, added_by FROM `%s`
-            WHERE identifier = ? AND (expires_at = 0 OR expires_at > ?) ORDER BY id DESC
+            SELECT content, createdat AS at, expiresat, addedby FROM `%s`
+            WHERE identifier = ? AND (expiresat = 0 OR expiresat > ?) ORDER BY id DESC
         ]]):format(Config.Database.tagsTable), { identifier, os.time() }) or {}
     end
 
     local out = {}
     local now = os.time()
     for _, tag in ipairs(Storage.Get('tags')) do
-        if tag.identifier == identifier and (tag.expires_at == 0 or tag.expires_at > now) then
+        if tag.identifier == identifier and (tag.expiresat == 0 or tag.expiresat > now) then
             out[#out + 1] = tag
         end
     end
@@ -233,14 +233,14 @@ end
 local function relationshipsOf(identifier)
     if Storage.UsingMysql() then
         return Storage.Query(([[
-            SELECT identifier, related_identifier, related_name, note FROM `%s`
-            WHERE identifier = ? OR related_identifier = ?
+            SELECT identifier, relatedidentifier, relatedname, note FROM `%s`
+            WHERE identifier = ? OR relatedidentifier = ?
         ]]):format(Config.Database.relationshipsTable), { identifier, identifier }) or {}
     end
 
     local out = {}
     for _, row in ipairs(Storage.Get('relationships')) do
-        if row.identifier == identifier or row.related_identifier == identifier then
+        if row.identifier == identifier or row.relatedidentifier == identifier then
             out[#out + 1] = row
         end
     end
@@ -249,21 +249,21 @@ end
 
 local function ratingLines(identifier, target)
     local lines = {}
-    if target then lines[#lines + 1] = ('player    : %s'):format(TSIV.Describe(target)) end
+    if target then lines[#lines + 1] = ('player    : %s'):format(tsivtools.Describe(target)) end
     lines[#lines + 1] = ('identifier: %s'):format(identifier)
 
     local tags = playerTags(identifier)
     lines[#lines + 1] = ('tags      : %d active'):format(#tags)
     for _, tag in ipairs(tags) do
-        lines[#lines + 1] = ('  %s%s'):format(tag.content, tag.expires_at > 0
-            and (' (until %s)'):format(TSIV.FormatTimestamp(tag.expires_at)) or ' (permanent)')
+        lines[#lines + 1] = ('  %s%s'):format(tag.content, tag.expiresat > 0
+            and (' (until %s)'):format(tsivtools.FormatTimestamp(tag.expiresat)) or ' (permanent)')
     end
 
     local links = relationshipsOf(identifier)
     lines[#lines + 1] = ('linked    : %d player(s)'):format(#links)
     for _, row in ipairs(links) do
         local other = row.identifier == identifier
-            and (row.related_name ~= '' and row.related_name or row.related_identifier)
+            and (row.relatedname ~= '' and row.relatedname or row.relatedidentifier)
             or row.identifier
         lines[#lines + 1] = ('  %s%s'):format(other, row.note ~= '' and (' - ' .. row.note) or '')
     end
@@ -271,81 +271,81 @@ local function ratingLines(identifier, target)
     local bans = Bans.History(identifier)
     lines[#lines + 1] = ('bans      : %d on record'):format(#bans)
     for _, ban in ipairs(bans) do
-        lines[#lines + 1] = ('  #%s %s - %s (%s)'):format(ban.id, TSIV.FormatTimestamp(ban.created_at),
+        lines[#lines + 1] = ('  #%s %s - %s (%s)'):format(ban.id, tsivtools.FormatTimestamp(ban.createdat),
             ban.reason, Bans.IsActive(ban) and 'active' or 'lifted or expired')
     end
 
     local rows = playerRows(identifier, 100)
     lines[#lines + 1] = ('records   : %d'):format(#rows)
     for _, row in ipairs(rows) do
-        lines[#lines + 1] = ('  [%s] %s: %s'):format(TSIV.FormatTimestamp(row.at), row.category, row.message or '')
+        lines[#lines + 1] = ('  [%s] %s: %s'):format(tsivtools.FormatTimestamp(row.at), row.category, row.message or '')
     end
 
     return lines
 end
 
-TSIV.RegisterRequest('watchlist.list', 'player.watchlist', function(_, payload)
+tsivtools.RegisterRequest('watchlist.list', 'player.watchlist', function(_, payload)
     return Records.Watchlist(payload.online == true)
 end)
 
-TSIV.RegisterAction('watchlist.add', 'player.watchlist', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('watchlist.add', 'player.watchlist', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
-    if Records.AddWatch(target, payload.note, TSIV.GetName(src)) then
-        TSIV.Notify(src, ('Added %s to the watchlist'):format(TSIV.GetName(target)), 'success')
+    if Records.AddWatch(target, payload.note, tsivtools.GetName(src)) then
+        tsivtools.Notify(src, ('Added %s to the watchlist'):format(tsivtools.GetName(target)), 'success')
     else
-        TSIV.Notify(src, 'That player is already on the watchlist.', 'error')
+        tsivtools.Notify(src, 'That player is already on the watchlist.', 'error')
     end
 end)
 
-TSIV.RegisterAction('watchlist.remove', 'player.watchlist', function(src, payload)
-    local identifier = TSIV.SafeString(payload.identifier, 80)
+tsivtools.RegisterAction('watchlist.remove', 'player.watchlist', function(src, payload)
+    local identifier = tsivtools.SafeString(payload.identifier, 80)
     if identifier == '' then return end
     Records.RemoveWatch(identifier)
-    TSIV.Notify(src, 'Removed from watchlist.', 'success')
+    tsivtools.Notify(src, 'Removed from watchlist.', 'success')
     Logs.Staff(src, ('Removed %s from the watchlist'):format(identifier), identifier)
 end)
 
-TSIV.RegisterAction('watchlist.ban', 'player.ban', function(src, payload)
+tsivtools.RegisterAction('watchlist.ban', 'player.ban', function(src, payload)
     local identifiers = {}
     if type(payload.identifiers) == 'table' then
         for _, identifier in pairs(payload.identifiers) do
             if type(identifier) == 'string' then
-                identifiers[#identifiers + 1] = TSIV.SafeString(identifier, 80)
+                identifiers[#identifiers + 1] = tsivtools.SafeString(identifier, 80)
             end
         end
     end
     if #identifiers == 0 then
-        TSIV.Notify(src, 'No stored identifiers are available for that player.', 'error')
+        tsivtools.Notify(src, 'No stored identifiers are available for that player.', 'error')
         return
     end
 
-    local reason = TSIV.SafeString(payload.reason, 200)
+    local reason = tsivtools.SafeString(payload.reason, 200)
     if reason == '' then reason = 'No reason given' end
 
-    local ban = Bans.Add(identifiers, TSIV.SafeString(payload.name, 48), reason, 0, TSIV.GetName(src))
+    local ban = Bans.Add(identifiers, tsivtools.SafeString(payload.name, 48), reason, 0, tsivtools.GetName(src))
     if ban then
-        TSIV.Notify(src, ('Offline ban created (#%d).'):format(ban.id), 'success')
+        tsivtools.Notify(src, ('Offline ban created (#%d).'):format(ban.id), 'success')
     else
-        TSIV.Notify(src, 'The ban could not be stored !!', 'error')
+        tsivtools.Notify(src, 'The ban could not be stored !!', 'error')
     end
 end)
 
-TSIV.RegisterAction('player.tag', 'player.tags', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.tag', 'player.tags', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
     tagPlayer(src, target, payload.duration, payload.content)
 end)
 
-TSIV.RegisterRequest('player.rating', 'player.rating', function(_, payload)
-    local target = TSIV.ResolveTarget(payload.target)
-    local identifier = target and TSIV.GetPrimaryIdentifier(target) or TSIV.SafeString(payload.identifier, 80)
+tsivtools.RegisterRequest('player.rating', 'player.rating', function(_, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
+    local identifier = target and tsivtools.GetPrimaryIdentifier(target) or tsivtools.SafeString(payload.identifier, 80)
     if identifier == '' then
         return { title = 'Player rating', lines = { 'A player ID or identifier is required.' } }
     end
@@ -354,33 +354,33 @@ end)
 
 RegisterCommand('rating', function(src, args)
     if not permitted(src, 'player.rating') then return end
-    local target = TSIV.ResolveTarget(args[1])
+    local target = tsivtools.ResolveTarget(args[1])
     if not target then
-        TSIV.Notify(src, 'usage: /rating <server id>', 'error')
+        tsivtools.Notify(src, 'usage: /rating <server id>', 'error')
         return
     end
-    TSIV.ConsoleBlock(src, 'Player rating', ratingLines(TSIV.GetPrimaryIdentifier(target), target))
+    tsivtools.ConsoleBlock(src, 'Player rating', ratingLines(tsivtools.GetPrimaryIdentifier(target), target))
 end, false)
 
 RegisterCommand('watchlist', function(src, args)
     if not permitted(src, 'player.watchlist') then return end
-    local target = TSIV.ResolveTarget(args[1])
+    local target = tsivtools.ResolveTarget(args[1])
     if not target then
-        TSIV.Notify(src, 'usage: /watchlist <server id> [note]', 'error')
+        tsivtools.Notify(src, 'usage: /watchlist <server id> [note]', 'error')
         return
     end
     if Records.AddWatch(target, table.concat(args, ' ', 2), actorName(src)) then
-        TSIV.Notify(src, ('Added %s to the watchlist'):format(TSIV.GetName(target)), 'success')
+        tsivtools.Notify(src, ('Added %s to the watchlist'):format(tsivtools.GetName(target)), 'success')
     else
-        TSIV.Notify(src, 'That player is already on the watchlist.', 'error')
+        tsivtools.Notify(src, 'That player is already on the watchlist.', 'error')
     end
 end, false)
 
 RegisterCommand('player_tag', function(src, args)
     if not permitted(src, 'player.tags') then return end
-    local target = TSIV.ResolveTarget(args[1])
+    local target = tsivtools.ResolveTarget(args[1])
     if not target or not args[2] then
-        TSIV.Notify(src, 'usage: /player_tag <id> <duration|permanent> <content>', 'error')
+        tsivtools.Notify(src, 'usage: /player_tag <id> <duration|permanent> <content>', 'error')
         return
     end
     tagPlayer(src, target, args[2], table.concat(args, ' ', 3))
@@ -388,15 +388,15 @@ end, false)
 
 AddEventHandler('playerJoining', function()
     local src = source
-    local ids = TSIV.GetIdentifiers(src)
-    local identifier = TSIV.GetPrimaryIdentifier(src)
-    local name = TSIV.GetName(src)
+    local ids = tsivtools.GetIdentifiers(src)
+    local identifier = tsivtools.GetPrimaryIdentifier(src)
+    local name = tsivtools.GetName(src)
     local steam = ids.steam or ''
 
     if findWatch(identifier) then
-        TSIV.StaffBroadcast('superadmin', ('Watchlist login: %s joined (server ID %d)'):format(name, src))
-        for _, member in ipairs(TSIV.GetStaff('superadmin')) do
-            TriggerClientEvent(TSIV.Events.watchlist, member.source, name, src)
+        tsivtools.StaffBroadcast('superadmin', ('Watchlist login: %s joined (server ID %d)'):format(name, src))
+        for _, member in ipairs(tsivtools.GetStaff('superadmin')) do
+            TriggerClientEvent(tsivtools.Events.watchlist, member.source, name, src)
         end
     end
 
@@ -418,9 +418,9 @@ AddEventHandler('playerJoining', function()
     Storage.MarkDirty('aliases')
 end)
 
-TSIV.RegisterRequest('player.aliases', 'player.aliases', function(_, payload)
-    local target = TSIV.ResolveTarget(payload.target)
-    local license = target and TSIV.GetPrimaryIdentifier(target) or TSIV.SafeString(payload.license, 80)
+tsivtools.RegisterRequest('player.aliases', 'player.aliases', function(_, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
+    local license = target and tsivtools.GetPrimaryIdentifier(target) or tsivtools.SafeString(payload.license, 80)
     if license == '' then return { title = 'Player aliases', lines = { 'A player ID is required.' } } end
 
     local rows
@@ -436,36 +436,36 @@ TSIV.RegisterRequest('player.aliases', 'player.aliases', function(_, payload)
 
     local lines = { 'license: ' .. license }
     for _, row in ipairs(rows) do
-        lines[#lines + 1] = ('[%s] %s / %s'):format(TSIV.FormatTimestamp(row.at), row.name,
+        lines[#lines + 1] = ('[%s] %s / %s'):format(tsivtools.FormatTimestamp(row.at), row.name,
             row.steam ~= '' and row.steam or 'no steam')
     end
     if #rows == 0 then lines[#lines + 1] = 'No aliases recorded yet.' end
     return { title = 'Player aliases', lines = lines }
 end)
 
-TSIV.RegisterAction('player.link', 'player.relationships', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
-    local related = TSIV.ResolveTarget(payload.related)
+tsivtools.RegisterAction('player.link', 'player.relationships', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
+    local related = tsivtools.ResolveTarget(payload.related)
     if not target or not related or target == related then
-        TSIV.Notify(src, 'Enter two different online player IDs.', 'error')
+        tsivtools.Notify(src, 'Enter two different online player IDs.', 'error')
         return
     end
 
     local row = {
-        identifier = TSIV.GetPrimaryIdentifier(target),
-        related_identifier = TSIV.GetPrimaryIdentifier(related),
-        related_name = TSIV.GetName(related),
-        note = TSIV.SafeString(payload.note, 160),
-        created_at = os.time(),
-        added_by = actor(src),
+        identifier = tsivtools.GetPrimaryIdentifier(target),
+        relatedidentifier = tsivtools.GetPrimaryIdentifier(related),
+        relatedname = tsivtools.GetName(related),
+        note = tsivtools.SafeString(payload.note, 160),
+        createdat = os.time(),
+        addedby = actor(src),
     }
 
     if Storage.UsingMysql() then
         Storage.Insert(([[
-            INSERT INTO `%s` (identifier, related_identifier, related_name, note, created_at, added_by)
+            INSERT INTO `%s` (identifier, relatedidentifier, relatedname, note, createdat, addedby)
             VALUES (?, ?, ?, ?, ?, ?)
         ]]):format(Config.Database.relationshipsTable), {
-            row.identifier, row.related_identifier, row.related_name, row.note, row.created_at, row.added_by,
+            row.identifier, row.relatedidentifier, row.relatedname, row.note, row.createdat, row.addedby,
         })
     else
         local rows = Storage.Get('relationships')
@@ -474,6 +474,6 @@ TSIV.RegisterAction('player.link', 'player.relationships', function(src, payload
         Storage.Flush('relationships')
     end
 
-    Logs.Staff(src, ('Linked %s with %s'):format(TSIV.Describe(target), TSIV.Describe(related)), target)
-    TSIV.Notify(src, 'Players linked.', 'success')
+    Logs.Staff(src, ('Linked %s with %s'):format(tsivtools.Describe(target), tsivtools.Describe(related)), target)
+    tsivtools.Notify(src, 'Players linked.', 'success')
 end)

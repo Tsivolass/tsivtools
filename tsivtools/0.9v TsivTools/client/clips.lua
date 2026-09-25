@@ -24,7 +24,7 @@ local function send(id, index, data)
     if total > 64 then return end
 
     for part = 1, total do
-        TriggerServerEvent(TSIV.Events.clipUpload, id, index, part, total,
+        TriggerServerEvent(tsivtools.Events.clipUpload, id, index, part, total,
             data:sub((part - 1) * chunkSize + 1, part * chunkSize))
         Wait(60)
     end
@@ -66,7 +66,7 @@ local function direct(request)
     end
 end
 
-RegisterNetEvent(TSIV.Events.clipRequest, function(request)
+RegisterNetEvent(tsivtools.Events.clipRequest, function(request)
     if type(request) ~= 'table' then return end
     if not available() then return end
 

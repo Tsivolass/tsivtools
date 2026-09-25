@@ -1,8 +1,6 @@
--- TSIV MENU STYLE 05: LUXURY
--- Luxury: restrained gold/cream palette with elegant proportions.
-TSIV.Menu = {}
+tsivtools.Menu = {}
 
-local Menu = TSIV.Menu
+local Menu = tsivtools.Menu
 local Item = {}
 Item.__index = Item
 
@@ -435,7 +433,7 @@ local function nuiInput(title, default, maxLength, numeric)
     Menu.LockInput(false)
 
     if timedOut then
-        TSIV.Notify('The text box timed out !', 'error')
+        tsivtools.Notify('The text box timed out !', 'error')
         return nil
     end
 
@@ -468,14 +466,14 @@ local function nativeInput(title, default, maxLength)
     return result
 end
 
-function TSIV.Input(title, default, maxLength)
+function tsivtools.Input(title, default, maxLength)
     if Config.usenuiinput then
         return nuiInput(title, default, maxLength, false)
     end
     return nativeInput(title, default, maxLength)
 end
 
-function TSIV.InputNumber(title, default, maxLength)
+function tsivtools.InputNumber(title, default, maxLength)
     local value
     if Config.usenuiinput then
         value = nuiInput(title, default and tostring(default) or '', maxLength or 10, true)
@@ -488,6 +486,6 @@ function TSIV.InputNumber(title, default, maxLength)
 end
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource ~= TSIV.resource then return end
+    if resource ~= tsivtools.resource then return end
     SetNuiFocus(false, false)
 end)

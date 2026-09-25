@@ -1,6 +1,6 @@
-TSIV.Aim = {}
+tsivtools.Aim = {}
 
-local Aim = TSIV.Aim
+local Aim = tsivtools.Aim
 
 local rad = math.rad
 local deg = math.deg

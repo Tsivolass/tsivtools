@@ -1,6 +1,6 @@
-TSIV = TSIV or {}
+tsivtools = tsivtools or {}
 
-TSIV.resource = GetCurrentResourceName()
+tsivtools.resource = GetCurrentResourceName()
 
 local rankByName = {}
 local ranksSorted = {}
@@ -11,46 +11,46 @@ for _, rank in ipairs(Config.Ranks) do
 end
 
 table.sort(ranksSorted, function(a, b) return a.level < b.level end)
-function TSIV.RankLevel(name)
+function tsivtools.RankLevel(name)
     if not name then return 0 end
     local rank = rankByName[name]
     return rank and rank.level or 0
 end
 
-function TSIV.RankLabel(name)
+function tsivtools.RankLabel(name)
     local rank = rankByName[name]
     return rank and rank.label or tostring(name)
 end
 
-function TSIV.RankExists(name)
+function tsivtools.RankExists(name)
     return rankByName[name] ~= nil
 end
 
-function TSIV.Ranks()
+function tsivtools.Ranks()
     return ranksSorted
 end
 
-function TSIV.PermissionLevel(key)
+function tsivtools.PermissionLevel(key)
     local required = Config.Permissions[key]
     if required == false then return nil end
     if required == nil then
         return ranksSorted[#ranksSorted].level
     end
-    return TSIV.RankLevel(required)
+    return tsivtools.RankLevel(required)
 end
 
-function TSIV.HasPermission(rankName, key)
-    local needed = TSIV.PermissionLevel(key)
+function tsivtools.HasPermission(rankName, key)
+    local needed = tsivtools.PermissionLevel(key)
     if needed == nil then return false end
-    return TSIV.RankLevel(rankName) >= needed
+    return tsivtools.RankLevel(rankName) >= needed
 end
 
-function TSIV.Trim(str)
+function tsivtools.Trim(str)
     if type(str) ~= 'string' then return '' end
     return (str:gsub('^%s*(.-)%s*$', '%1'))
 end
 
-function TSIV.ToNumber(value)
+function tsivtools.ToNumber(value)
     local n = tonumber(value)
     if not n then return nil end
     if n ~= n then return nil end
@@ -58,8 +58,8 @@ function TSIV.ToNumber(value)
     return n
 end
 
-function TSIV.ToInt(value, min, max)
-    local n = TSIV.ToNumber(value)
+function tsivtools.ToInt(value, min, max)
+    local n = tsivtools.ToNumber(value)
     if not n then return nil end
     n = math.floor(n)
     if min and n < min then return nil end
@@ -67,13 +67,13 @@ function TSIV.ToInt(value, min, max)
     return n
 end
 
-function TSIV.SafeString(value, maxLength)
+function tsivtools.SafeString(value, maxLength)
     if type(value) ~= 'string' then
         if value == nil then return '' end
         value = tostring(value)
     end
     value = value:gsub('%c', ' '):gsub('%^%d', '')
-    value = TSIV.Trim(value)
+    value = tsivtools.Trim(value)
     maxLength = maxLength or 128
     if #value > maxLength then
         value = value:sub(1, maxLength)
@@ -81,12 +81,12 @@ function TSIV.SafeString(value, maxLength)
     return value
 end
 
-function TSIV.Round(value, decimals)
+function tsivtools.Round(value, decimals)
     local mult = 10 ^ (decimals or 0)
     return math.floor(value * mult + 0.5) / mult
 end
 
-function TSIV.FormatDuration(minutes)
+function tsivtools.FormatDuration(minutes)
     minutes = tonumber(minutes) or 0
     if minutes <= 0 then return 'permanent' end
     local days = math.floor(minutes / 1440)
@@ -99,12 +99,12 @@ function TSIV.FormatDuration(minutes)
     return table.concat(parts, ' ')
 end
 
-function TSIV.FormatTimestamp(unix)
+function tsivtools.FormatTimestamp(unix)
     if not unix or unix <= 0 then return 'never' end
     return os.date('%Y-%m-%d %H:%M:%S', unix)
 end
 
-function TSIV.BuildModelSet(list)
+function tsivtools.BuildModelSet(list)
     local set = {}
     for _, entry in ipairs(list or {}) do
         if type(entry) == 'number' then
@@ -118,17 +118,17 @@ function TSIV.BuildModelSet(list)
     return set
 end
 
-function TSIV.TableCount(tbl)
+function tsivtools.TableCount(tbl)
     local count = 0
     for _ in pairs(tbl) do count = count + 1 end
     return count
 end
 
-function TSIV.Copy(tbl)
+function tsivtools.Copy(tbl)
     local out = {}
     for key, value in pairs(tbl) do
         if type(value) == 'table' then
-            out[key] = TSIV.Copy(value)
+            out[key] = tsivtools.Copy(value)
         else
             out[key] = value
         end
@@ -139,7 +139,7 @@ end
 local Window = {}
 Window.__index = Window
 
-function TSIV.NewWindow(seconds)
+function tsivtools.NewWindow(seconds)
     return setmetatable({ seconds = seconds, entries = {} }, Window)
 end
 
@@ -168,7 +168,7 @@ end
 
 local prefix = 'tsivtools:'
 
-TSIV.Events = {
+tsivtools.Events = {
     action      = prefix .. 'sv:action',
     request     = prefix .. 'sv:request',
     report      = prefix .. 'sv:report',

@@ -1,10 +1,10 @@
-TSIV.Detections = {}
+tsivtools.Detections = {}
 
-local Detections = TSIV.Detections
+local Detections = tsivtools.Detections
 local settings = Config.anticheat
 
-local meleeWeapons    = TSIV.BuildModelSet(settings.punch and settings.punch.meleeWeapons)
-local damagingWeapons = TSIV.BuildModelSet(settings.godmode and settings.godmode.weapons)
+local meleeWeapons    = tsivtools.BuildModelSet(settings.punch and settings.punch.meleeWeapons)
+local damagingWeapons = tsivtools.BuildModelSet(settings.godmode and settings.godmode.weapons)
 
 local strikes  = {}
 local joinedAt = {}
@@ -23,20 +23,20 @@ end
 
 local function moduleOn(key, rules)
     if not settings.enabled then return false end
-    if not TSIV.Module(key) then return false end
+    if not tsivtools.Module(key) then return false end
     if rules and rules.enabled == false then return false end
     return true
 end
 
 local function punish(src, action, reason, banLength, detail)
-    if TSIV.AntiCheat and TSIV.AntiCheat.Punish then
-        TSIV.AntiCheat.Punish(src, action, reason, banLength, detail)
+    if tsivtools.AntiCheat and tsivtools.AntiCheat.Punish then
+        tsivtools.AntiCheat.Punish(src, action, reason, banLength, detail)
     end
 end
 
 local function isExempt(src)
-    if TSIV.AntiCheat and TSIV.AntiCheat.IsExempt then
-        return TSIV.AntiCheat.IsExempt(src)
+    if tsivtools.AntiCheat and tsivtools.AntiCheat.IsExempt then
+        return tsivtools.AntiCheat.IsExempt(src)
     end
     return false
 end
@@ -63,7 +63,7 @@ end
 
 local function route(src, module, rules, points, detail)
     if rules.action == 'confidence' or rules.action == nil then
-        TSIV.Confidence.Add(src, module, points, rules.reason, detail)
+        tsivtools.Confidence.Add(src, module, points, rules.reason, detail)
         return
     end
 
@@ -195,8 +195,8 @@ Detections.AimPoint = hitPoint
 local function aimSource(src)
     local rules = settings.silentAim
 
-    if rules.useClientAim ~= false and TSIV.Aimbot and TSIV.Aimbot.LastAim then
-        local yaw, pitch, age = TSIV.Aimbot.LastAim(src)
+    if rules.useClientAim ~= false and tsivtools.Aimbot and tsivtools.Aimbot.LastAim then
+        local yaw, pitch, age = tsivtools.Aimbot.LastAim(src)
         if yaw and age <= (rules.maxClientAimAgeMs or 900) then
             return yaw, pitch, 'camera'
         end
@@ -245,7 +245,7 @@ Detections.AllowedOffset = allowedOffset
 local function flagSilent(src, points, detail)
     local rules = settings.silentAim
     if rules.action == 'confidence' or rules.action == nil then
-        TSIV.Confidence.Add(src, 'silentaim', points, rules.reason, detail)
+        tsivtools.Confidence.Add(src, 'silentaim', points, rules.reason, detail)
         return
     end
 
@@ -283,7 +283,7 @@ function Detections.CheckSilentAim(src, victims, weapon, data)
             local x, y, z, ped = hitPoint(victim, data)
             if x and not (rules.requireVisible and not isVisible(ped)) then
                 local targetYaw, targetPitch, distance, flat =
-                    TSIV.Aim.Bearing(origin.x, origin.y, origin.z + eye, x, y, z)
+                    tsivtools.Aim.Bearing(origin.x, origin.y, origin.z + eye, x, y, z)
 
                 if targetYaw
                     and distance >= (rules.minDistance or 6.0)
@@ -291,7 +291,7 @@ function Detections.CheckSilentAim(src, victims, weapon, data)
 
                     local off
                     if kind == 'camera' then
-                        off = TSIV.Aim.Between(yaw, pitch, targetYaw, targetPitch)
+                        off = tsivtools.Aim.Between(yaw, pitch, targetYaw, targetPitch)
                     else
                         off = math.abs((targetYaw - yaw + 180.0) % 360.0 - 180.0)
                         distance = flat
@@ -326,8 +326,8 @@ function Detections.CheckSilentAim(src, victims, weapon, data)
     local points = (rules.points or 35) * math.min(2.0, worst.severity) * 0.5
 
     flagSilent(src, points, {
-        ('victim    : %s (id %s)'):format(TSIV.GetName(worst.victim), worst.victim),
-        ('weapon    : %s'):format(TSIV.AntiCheat.ModelLabel(weapon)),
+        ('victim    : %s (id %s)'):format(tsivtools.GetName(worst.victim), worst.victim),
+        ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
         ('aim from  : %s'):format(kind == 'camera' and 'reported camera' or 'ped heading'),
         ('distance  : %.1f m'):format(worst.distance),
         ('aim off   : %.1f degrees, allowed %.1f'):format(worst.off, worst.allowed),
@@ -364,7 +364,7 @@ function Detections.CheckGodmode(src, victims, weapon)
 
     for _, victim in ipairs(victims) do
         if victim ~= src and not pending[victim] then
-            local allowed = (rules.skipExempt and isExempt(victim)) or TSIV.Can(victim, 'self.godmode')
+            local allowed = (rules.skipExempt and isExempt(victim)) or tsivtools.Can(victim, 'self.godmode')
             if not allowed and sessionAge(victim) >= (rules.joinGrace or 0) then
                 local ped = GetPlayerPed(victim)
                 local before, health = vitality(ped)
@@ -381,8 +381,8 @@ function Detections.CheckGodmode(src, victims, weapon)
                         if after < before then return end
 
                         route(victim, 'godmode', rules, rules.points or 45, {
-                            ('shot by   : %s (id %s)'):format(TSIV.GetName(src), src),
-                            ('weapon    : %s'):format(TSIV.AntiCheat.ModelLabel(weapon)),
+                            ('shot by   : %s (id %s)'):format(tsivtools.GetName(src), src),
+                            ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
                             ('health    : %d before, %d after %d ms'):format(before, after, rules.checkDelayMs or 900),
                         })
                     end)
@@ -399,7 +399,7 @@ function Detections.CheckMelee(src, victims, weapon)
 
     local state = melee[src]
     if not state then
-        state = { at = 0, victims = {}, recent = TSIV.NewWindow(rules.multiWindow) }
+        state = { at = 0, victims = {}, recent = tsivtools.NewWindow(rules.multiWindow) }
         melee[src] = state
     end
 
@@ -414,7 +414,7 @@ function Detections.CheckMelee(src, victims, weapon)
         local last = state.victims[victim]
         if not problem and last and now - last < (rules.victimIntervalMs or 0) then
             problem = ('hit %s again after %d ms, minimum is %d ms'):format(
-                TSIV.GetName(victim), now - last, rules.victimIntervalMs)
+                tsivtools.GetName(victim), now - last, rules.victimIntervalMs)
         end
         state.victims[victim] = now
     end
@@ -441,7 +441,7 @@ function Detections.CheckMelee(src, victims, weapon)
     if not problem then return false end
 
     route(src, 'punch', rules, rules.points or 12, {
-        ('weapon    : %s'):format(TSIV.AntiCheat.ModelLabel(weapon)),
+        ('weapon    : %s'):format(tsivtools.AntiCheat.ModelLabel(weapon)),
         ('problem   : %s'):format(problem),
     })
 
@@ -486,10 +486,10 @@ AddEventHandler('weaponDamageEvent', function(sender, data)
         end
 
         if aimOn then
-            TSIV.Aimbot.Watch(src)
+            tsivtools.Aimbot.Watch(src)
             local x, y, z = Detections.AimPoint(victims[1], data)
             if x then
-                TSIV.Aimbot.Check(src, victims[1], x, y, z, weapon)
+                tsivtools.Aimbot.Check(src, victims[1], x, y, z, weapon)
             end
         end
     end
@@ -513,10 +513,10 @@ function Detections.StartHeartbeat(src)
 
     beats[src] = { at = now, since = now }
     tokens[src] = newToken()
-    TriggerClientEvent(TSIV.Events.heartbeat, src, rules.intervalSeconds, tokens[src])
+    TriggerClientEvent(tsivtools.Events.heartbeat, src, rules.intervalSeconds, tokens[src])
 end
 
-RegisterNetEvent(TSIV.Events.beat, function(token)
+RegisterNetEvent(tsivtools.Events.beat, function(token)
     local src = source
     local rules = settings.heartbeat
 
@@ -526,7 +526,7 @@ RegisterNetEvent(TSIV.Events.beat, function(token)
 
     entry.at = seconds()
     tokens[src] = newToken()
-    TriggerClientEvent(TSIV.Events.heartbeat, src, rules.intervalSeconds, tokens[src])
+    TriggerClientEvent(tsivtools.Events.heartbeat, src, rules.intervalSeconds, tokens[src])
 end)
 
 CreateThread(function()

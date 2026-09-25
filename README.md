@@ -299,7 +299,7 @@ And the decision, in `Detections.CheckSilentAim`:
 ```lua
 local off
 if kind == 'camera' then
-    off = TSIV.Aim.Between(yaw, pitch, targetYaw, targetPitch)
+    off = tsivtools.Aim.Between(yaw, pitch, targetYaw, targetPitch)
 else
     off = math.abs((targetYaw - yaw + 180.0) % 360.0 - 180.0)
     distance = flat

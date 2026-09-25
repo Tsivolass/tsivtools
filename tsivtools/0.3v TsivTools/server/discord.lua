@@ -1,4 +1,4 @@
-TSIV.Discord = {}
+tsivtools.Discord = {}
 
 local queue = {}
 local dropped = 0
@@ -23,7 +23,7 @@ CreateThread(function()
     end
 end)
 
-function TSIV.Discord.Send(category, record)
+function tsivtools.Discord.Send(category, record)
     local settings = Config.Logging.discord
     if not settings.enabled then return end
 
@@ -67,7 +67,7 @@ function TSIV.Discord.Send(category, record)
                 description = record.message,
                 color = settings.colours[category] or 8421504,
                 fields = fields,
-                footer = { text = ('TsivTools  /  %s'):format(TSIV.FormatTimestamp(record.at)) },
+                footer = { text = ('TsivTools  /  %s'):format(tsivtools.FormatTimestamp(record.at)) },
             } },
         },
     }

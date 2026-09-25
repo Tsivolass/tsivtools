@@ -1,6 +1,6 @@
-TSIV.Clips = {}
+tsivtools.Clips = {}
 
-local Clips = TSIV.Clips
+local Clips = tsivtools.Clips
 local settings = Config.anticheat.clips
 
 local captures = {}
@@ -62,7 +62,7 @@ Clips.Webhook = webhookUrl
 
 function Clips.Available()
     if not Config.anticheat.enabled then return false end
-    if not TSIV.Module('banClips') then return false end
+    if not tsivtools.Module('banClips') then return false end
     if settings.enabled == false then return false end
     if GetResourceState('screenshot-basic') ~= 'started' then return false end
     return webhookUrl() ~= nil
@@ -114,7 +114,7 @@ local function embedFor(context, framesFound)
                 { name = 'Identifier', value = ('`%s`'):format(context.identifier), inline = false },
                 { name = 'Frames', value = ('%d over %.1f second(s)'):format(framesFound, settings.seconds), inline = true },
             },
-            footer = { text = ('TsivTools  /  %s'):format(TSIV.FormatTimestamp(os.time())) },
+            footer = { text = ('TsivTools  /  %s'):format(tsivtools.FormatTimestamp(os.time())) },
         } },
     }
 end
@@ -163,15 +163,15 @@ function Clips.Before(src, reason, done)
     local id = nextId
     nextId = nextId + 1
 
-    local frames = math.max(1, TSIV.ToInt(settings.frames, 1, 10) or 3)
+    local frames = math.max(1, tsivtools.ToInt(settings.frames, 1, 10) or 3)
     local span = math.max(1.0, tonumber(settings.seconds) or 5.0)
 
     local context = {
         id = src,
-        name = TSIV.GetName(src),
-        steam = TSIV.GetSteamId(src),
-        identifier = TSIV.GetPrimaryIdentifier(src),
-        reason = TSIV.SafeString(reason, 200),
+        name = tsivtools.GetName(src),
+        steam = tsivtools.GetSteamId(src),
+        identifier = tsivtools.GetPrimaryIdentifier(src),
+        reason = tsivtools.SafeString(reason, 200),
     }
 
     captures[id] = {
@@ -183,7 +183,7 @@ function Clips.Before(src, reason, done)
         done = done,
     }
 
-    TriggerClientEvent(TSIV.Events.clipRequest, src, {
+    TriggerClientEvent(tsivtools.Events.clipRequest, src, {
         id = id,
         mode = settings.mode,
         frames = frames,
@@ -210,15 +210,15 @@ function Clips.Before(src, reason, done)
     end)
 end
 
-RegisterNetEvent(TSIV.Events.clipUpload, function(id, index, part, total, data)
+RegisterNetEvent(tsivtools.Events.clipUpload, function(id, index, part, total, data)
     local src = source
 
     local entry = captures[id]
     if not entry or entry.src ~= src then return end
 
-    index = TSIV.ToInt(index, 1, entry.expected)
-    part = TSIV.ToInt(part, 1, 64)
-    total = TSIV.ToInt(total, 1, 64)
+    index = tsivtools.ToInt(index, 1, entry.expected)
+    part = tsivtools.ToInt(part, 1, 64)
+    total = tsivtools.ToInt(total, 1, 64)
     if not index or not part or not total or part > total then return end
     if type(data) ~= 'string' then return end
 

@@ -4,7 +4,7 @@ local rankCache = {}
 local rateLimit = {}
 
 
-function TSIV.GetIdentifiers(src)
+function tsivtools.GetIdentifiers(src)
     local out = {}
     local count = GetNumPlayerIdentifiers(src)
     for index = 0, count - 1 do
@@ -20,28 +20,28 @@ function TSIV.GetIdentifiers(src)
 end
 
 
-function TSIV.GetPrimaryIdentifier(src)
-    local ids = TSIV.GetIdentifiers(src)
+function tsivtools.GetPrimaryIdentifier(src)
+    local ids = tsivtools.GetIdentifiers(src)
     return ids.license or ids.steam or ids.discord or ids.fivem or ('src:' .. src)
 end
 
 
-function TSIV.GetSteamId(src)
-    local ids = TSIV.GetIdentifiers(src)
+function tsivtools.GetSteamId(src)
+    local ids = tsivtools.GetIdentifiers(src)
     return ids.steam or 'no steam id'
 end
 
-function TSIV.GetName(src)
+function tsivtools.GetName(src)
     local name = GetPlayerName(src)
-    return name and TSIV.SafeString(name, 48) or ('unknown (' .. tostring(src) .. ')')
+    return name and tsivtools.SafeString(name, 48) or ('unknown (' .. tostring(src) .. ')')
 end
 
-function TSIV.Describe(src)
-    return ('%s (id %s)'):format(TSIV.GetName(src), src)
+function tsivtools.Describe(src)
+    return ('%s (id %s)'):format(tsivtools.GetName(src), src)
 end
 
-function TSIV.ResolveTarget(value)
-    local id = TSIV.ToInt(value, 1, 65535)
+function tsivtools.ResolveTarget(value)
+    local id = tsivtools.ToInt(value, 1, 65535)
     if not id then return nil end
     if GetPlayerName(id) == nil then return nil end
     return id
@@ -71,9 +71,9 @@ local function frameworkRank(src)
 end
 
 
-function TSIV.GetRank(src)
+function tsivtools.GetRank(src)
     if src == 0 then
-        local ranks = TSIV.Ranks()
+        local ranks = tsivtools.Ranks()
         return ranks[#ranks].name
     end
 
@@ -81,21 +81,21 @@ function TSIV.GetRank(src)
 
     local best, bestLevel = nil, 0
 
-    local identifiers = TSIV.GetIdentifiers(src)
+    local identifiers = tsivtools.GetIdentifiers(src)
     for _, identifier in pairs(identifiers) do
         local rank = Config.Staff[identifier]
-        if rank and TSIV.RankLevel(rank) > bestLevel then
-            best, bestLevel = rank, TSIV.RankLevel(rank)
+        if rank and tsivtools.RankLevel(rank) > bestLevel then
+            best, bestLevel = rank, tsivtools.RankLevel(rank)
         end
 
-        local stored = TSIV.StaffStore and TSIV.StaffStore()[identifier] or nil
-        if stored and TSIV.RankLevel(stored) > bestLevel then
-            best, bestLevel = stored, TSIV.RankLevel(stored)
+        local stored = tsivtools.StaffStore and tsivtools.StaffStore()[identifier] or nil
+        if stored and tsivtools.RankLevel(stored) > bestLevel then
+            best, bestLevel = stored, tsivtools.RankLevel(stored)
         end
     end
 
     if Config.UseAcePermissions then
-        for _, rank in ipairs(TSIV.Ranks()) do
+        for _, rank in ipairs(tsivtools.Ranks()) do
             local ace = ('%s.%s'):format(Config.AcePrefix, rank.name)
             if IsPlayerAceAllowed(src, ace) and rank.level > bestLevel then
                 best, bestLevel = rank.name, rank.level
@@ -105,8 +105,8 @@ function TSIV.GetRank(src)
 
     if Config.Framework ~= 'none' then
         local rank = frameworkRank(src)
-        if rank and TSIV.RankLevel(rank) > bestLevel then
-            best, bestLevel = rank, TSIV.RankLevel(rank)
+        if rank and tsivtools.RankLevel(rank) > bestLevel then
+            best, bestLevel = rank, tsivtools.RankLevel(rank)
         end
     end
 
@@ -114,7 +114,7 @@ function TSIV.GetRank(src)
     return best
 end
 
-function TSIV.ClearRankCache(src)
+function tsivtools.ClearRankCache(src)
     if src then
         rankCache[src] = nil
     else
@@ -124,29 +124,29 @@ end
 
 
 
-function TSIV.Can(src, key)
-    local rank = TSIV.GetRank(src)
+function tsivtools.Can(src, key)
+    local rank = tsivtools.GetRank(src)
     if not rank then return false end
-    return TSIV.HasPermission(rank, key)
+    return tsivtools.HasPermission(rank, key)
 end
 
 
 
-function TSIV.GetStaff(minRank)
-    local minLevel = minRank and TSIV.RankLevel(minRank) or 1
+function tsivtools.GetStaff(minRank)
+    local minLevel = minRank and tsivtools.RankLevel(minRank) or 1
     local out = {}
     for _, src in ipairs(GetPlayers()) do
         src = tonumber(src)
-        local rank = TSIV.GetRank(src)
-        if rank and TSIV.RankLevel(rank) >= minLevel then
+        local rank = tsivtools.GetRank(src)
+        if rank and tsivtools.RankLevel(rank) >= minLevel then
             out[#out + 1] = {
                 source = src,
-                name = TSIV.GetName(src),
+                name = tsivtools.GetName(src),
                 rank = rank,
-                rankLabel = TSIV.RankLabel(rank),
-                level = TSIV.RankLevel(rank),
-                identifier = TSIV.GetPrimaryIdentifier(src),
-                steam = TSIV.GetSteamId(src),
+                rankLabel = tsivtools.RankLabel(rank),
+                level = tsivtools.RankLevel(rank),
+                identifier = tsivtools.GetPrimaryIdentifier(src),
+                steam = tsivtools.GetSteamId(src),
             }
         end
     end
@@ -158,40 +158,40 @@ function TSIV.GetStaff(minRank)
 end
 
 
-function TSIV.Notify(src, message, kind)
+function tsivtools.Notify(src, message, kind)
     if src == 0 then
         print(Config.ConsolePrefix .. message)
         return
     end
-    TriggerClientEvent(TSIV.Events.notify, src, message, kind or 'info')
+    TriggerClientEvent(tsivtools.Events.notify, src, message, kind or 'info')
 end
 
-function TSIV.Console(src, message, colour)
+function tsivtools.Console(src, message, colour)
     if src == 0 then
         print(Config.ConsolePrefix .. message)
         return
     end
-    TriggerClientEvent(TSIV.Events.console, src, message, colour)
+    TriggerClientEvent(tsivtools.Events.console, src, message, colour)
 end
 
 
-function TSIV.ConsoleBlock(src, title, lines)
+function tsivtools.ConsoleBlock(src, title, lines)
     if src == 0 then
         print(Config.ConsolePrefix .. title)
         for _, line in ipairs(lines) do print('  ' .. line) end
         return
     end
-    TriggerClientEvent(TSIV.Events.console, src, { title = title, lines = lines })
+    TriggerClientEvent(tsivtools.Events.console, src, { title = title, lines = lines })
 end
 
 
-function TSIV.StaffBroadcast(minRank, message, consoleLines)
-    for _, member in ipairs(TSIV.GetStaff(minRank)) do
+function tsivtools.StaffBroadcast(minRank, message, consoleLines)
+    for _, member in ipairs(tsivtools.GetStaff(minRank)) do
         if message then
-            TriggerClientEvent(TSIV.Events.alert, member.source, message)
+            TriggerClientEvent(tsivtools.Events.alert, member.source, message)
         end
         if consoleLines then
-            TSIV.ConsoleBlock(member.source, message or 'tsivtools alert', consoleLines)
+            tsivtools.ConsoleBlock(member.source, message or 'tsivtools alert', consoleLines)
         end
     end
 
@@ -204,11 +204,11 @@ function TSIV.StaffBroadcast(minRank, message, consoleLines)
 end
 
 
-function TSIV.RegisterAction(name, permission, handler)
+function tsivtools.RegisterAction(name, permission, handler)
     actions[name] = { permission = permission, handler = handler }
 end
 
-function TSIV.RegisterRequest(name, permission, handler)
+function tsivtools.RegisterRequest(name, permission, handler)
     requests[name] = { permission = permission, handler = handler }
 end
 
@@ -224,39 +224,39 @@ local function allowRate(src)
     if bucket.count > 40 then
         if bucket.count == 41 then
             print(('%s%s is sending events far too quickly and is being throttled')
-                :format(Config.ConsolePrefix, TSIV.Describe(src)))
+                :format(Config.ConsolePrefix, tsivtools.Describe(src)))
         end
         return false
     end
     return true
 end
 
-RegisterNetEvent(TSIV.Events.action, function(name, payload)
+RegisterNetEvent(tsivtools.Events.action, function(name, payload)
     local src = source
     if type(name) ~= 'string' then return end
     if not allowRate(src) then return end
 
     local entry = actions[name]
     if not entry then
-        print(('%s%s asked for the unknown action "%s"'):format(Config.ConsolePrefix, TSIV.Describe(src), TSIV.SafeString(name, 40)))
+        print(('%s%s asked for the unknown action "%s"'):format(Config.ConsolePrefix, tsivtools.Describe(src), tsivtools.SafeString(name, 40)))
         return
     end
 
-    if entry.permission and not TSIV.Can(src, entry.permission) then
-        TSIV.Notify(src, 'You do not have permission to do that !!', 'error')
+    if entry.permission and not tsivtools.Can(src, entry.permission) then
+        tsivtools.Notify(src, 'You do not have permission to do that !!', 'error')
         print(('%s%s tried to use "%s" without the %s permission')
-            :format(Config.ConsolePrefix, TSIV.Describe(src), name, entry.permission))
+            :format(Config.ConsolePrefix, tsivtools.Describe(src), name, entry.permission))
         return
     end
 
     local ok, err = pcall(entry.handler, src, type(payload) == 'table' and payload or {})
     if not ok then
         print(('%saction "%s" failed: %s'):format(Config.ConsolePrefix, name, err))
-        TSIV.Notify(src, 'That action failed! report to dev !!', 'error')
+        tsivtools.Notify(src, 'That action failed! report to dev !!', 'error')
     end
 end)
 
-RegisterNetEvent(TSIV.Events.request, function(name, requestId, payload)
+RegisterNetEvent(tsivtools.Events.request, function(name, requestId, payload)
     local src = source
     if type(name) ~= 'string' or type(requestId) ~= 'number' then return end
     if not allowRate(src) then return end
@@ -264,8 +264,8 @@ RegisterNetEvent(TSIV.Events.request, function(name, requestId, payload)
     local entry = requests[name]
     if not entry then return end
 
-    if entry.permission and not TSIV.Can(src, entry.permission) then
-        TriggerClientEvent(TSIV.Events.response, src, requestId, nil)
+    if entry.permission and not tsivtools.Can(src, entry.permission) then
+        TriggerClientEvent(tsivtools.Events.response, src, requestId, nil)
         return
     end
 
@@ -274,37 +274,37 @@ RegisterNetEvent(TSIV.Events.request, function(name, requestId, payload)
         print(('%srequest "%s" failed: %s'):format(Config.ConsolePrefix, name, result))
         result = nil
     end
-    TriggerClientEvent(TSIV.Events.response, src, requestId, result)
+    TriggerClientEvent(tsivtools.Events.response, src, requestId, result)
 end)
 
 
 
 local function sendPermissions(src)
-    local rank = TSIV.GetRank(src)
+    local rank = tsivtools.GetRank(src)
     if not rank then
-        TriggerClientEvent(TSIV.Events.permissions, src, nil)
+        TriggerClientEvent(tsivtools.Events.permissions, src, nil)
         return
     end
 
     local granted = {}
     for key in pairs(Config.Permissions) do
-        if TSIV.HasPermission(rank, key) then
+        if tsivtools.HasPermission(rank, key) then
             granted[key] = true
         end
     end
 
-    TriggerClientEvent(TSIV.Events.permissions, src, {
+    TriggerClientEvent(tsivtools.Events.permissions, src, {
         rank = rank,
-        rankLabel = TSIV.RankLabel(rank),
-        level = TSIV.RankLevel(rank),
+        rankLabel = tsivtools.RankLabel(rank),
+        level = tsivtools.RankLevel(rank),
         granted = granted,
-        propLogging = TSIV.PropLoggingEnabled and TSIV.PropLoggingEnabled() or false,
+        propLogging = tsivtools.PropLoggingEnabled and tsivtools.PropLoggingEnabled() or false,
     })
 end
 
-TSIV.SendPermissions = sendPermissions
+tsivtools.SendPermissions = sendPermissions
 
-RegisterNetEvent(TSIV.Events.ready, function()
+RegisterNetEvent(tsivtools.Events.ready, function()
     local src = source
     if not allowRate(src) then return end
     sendPermissions(src)
@@ -319,34 +319,34 @@ end)
 
 
 RegisterCommand('tsivtools_whoami', function(src, args)
-    local target = TSIV.ResolveTarget(args[1]) or (src ~= 0 and src or nil)
+    local target = tsivtools.ResolveTarget(args[1]) or (src ~= 0 and src or nil)
     if not target then
         print(('%susage: tsivtools_whoami <user id>'):format(Config.ConsolePrefix))
         return
     end
 
-    if src ~= 0 and not TSIV.Can(src, 'player.identifiers') and src ~= target then
+    if src ~= 0 and not tsivtools.Can(src, 'player.identifiers') and src ~= target then
         return
     end
 
-    local lines = { ('rank: %s'):format(TSIV.GetRank(target) or 'none') }
-    for kind, identifier in pairs(TSIV.GetIdentifiers(target)) do
+    local lines = { ('rank: %s'):format(tsivtools.GetRank(target) or 'none') }
+    for kind, identifier in pairs(tsivtools.GetIdentifiers(target)) do
         lines[#lines + 1] = ('%s = %s'):format(kind, identifier)
     end
 
     if src == 0 then
-        print(('%sidentifiers for %s'):format(Config.ConsolePrefix, TSIV.Describe(target)))
+        print(('%sidentifiers for %s'):format(Config.ConsolePrefix, tsivtools.Describe(target)))
         for _, line in ipairs(lines) do print('  ' .. line) end
     else
-        TSIV.ConsoleBlock(src, ('identifiers for %s'):format(TSIV.Describe(target)), lines)
+        tsivtools.ConsoleBlock(src, ('identifiers for %s'):format(tsivtools.Describe(target)), lines)
     end
 end, false)
 
 RegisterCommand('tsivtools_reload', function(src)
     if src ~= 0 then
-        if not TSIV.Can(src, 'player.setrank') then return end
+        if not tsivtools.Can(src, 'player.setrank') then return end
     end
-    TSIV.ClearRankCache()
+    tsivtools.ClearRankCache()
     for _, player in ipairs(GetPlayers()) do
         sendPermissions(tonumber(player))
     end

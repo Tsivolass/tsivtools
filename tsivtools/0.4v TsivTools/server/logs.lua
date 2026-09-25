@@ -1,10 +1,10 @@
-TSIV.Logs = {}
+tsivtools.Logs = {}
 
-local Logs = TSIV.Logs
+local Logs = tsivtools.Logs
 local nextId = 1
 
 local function fileStore()
-    return TSIV.Storage.Get('logs')
+    return tsivtools.Storage.Get('logs')
 end
 
 local function initFileIds()
@@ -17,8 +17,8 @@ local function initFileIds()
 end
 
 CreateThread(function()
-    TSIV.Storage.WaitReady()
-    if not TSIV.Storage.UsingMysql() then
+    tsivtools.Storage.WaitReady()
+    if not tsivtools.Storage.UsingMysql() then
         initFileIds()
     end
 end)
@@ -32,17 +32,17 @@ function Logs.Write(entry)
         category = category,
         at = os.time(),
         actor = entry.actor or '',
-        actorName = TSIV.SafeString(entry.actorName or '', 48),
+        actorName = tsivtools.SafeString(entry.actorName or '', 48),
         target = entry.target or '',
-        targetName = TSIV.SafeString(entry.targetName or '', 48),
-        message = TSIV.SafeString(entry.message or '', 400),
+        targetName = tsivtools.SafeString(entry.targetName or '', 48),
+        message = tsivtools.SafeString(entry.message or '', 400),
         data = entry.data,
     }
     nextId = nextId + 1
 
-    if TSIV.Storage.UsingMysql() then
-        TSIV.Storage.InsertLater(([[
-            INSERT INTO `%s` (category, created_at, actor, actor_name, target, target_name, message, data)
+    if tsivtools.Storage.UsingMysql() then
+        tsivtools.Storage.InsertLater(([[
+            INSERT INTO `%s` (category, createdat, actor, actorname, target, targetname, message, data)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ]]):format(Config.Database.logTable), {
             record.category, record.at, record.actor, record.actorName,
@@ -61,18 +61,18 @@ function Logs.Write(entry)
             for key in pairs(store) do store[key] = nil end
             for index, value in ipairs(trimmed) do store[index] = value end
         end
-        TSIV.Storage.MarkDirty('logs')
+        tsivtools.Storage.MarkDirty('logs')
     end
 
-    TSIV.Discord.Send(category, record)
+    tsivtools.Discord.Send(category, record)
     return record
 end
 
 function Logs.Staff(src, message, target, data)
     local targetIdentifier, targetName = '', ''
     if type(target) == 'number' then
-        targetIdentifier = TSIV.GetPrimaryIdentifier(target)
-        targetName = TSIV.GetName(target)
+        targetIdentifier = tsivtools.GetPrimaryIdentifier(target)
+        targetName = tsivtools.GetName(target)
     elseif type(target) == 'string' then
         targetIdentifier = target
     elseif type(target) == 'table' then
@@ -83,8 +83,8 @@ function Logs.Staff(src, message, target, data)
     return Logs.Write({
         category = 'staff',
         message = message,
-        actor = src ~= 0 and TSIV.GetPrimaryIdentifier(src) or 'console',
-        actorName = src ~= 0 and TSIV.GetName(src) or 'server console',
+        actor = src ~= 0 and tsivtools.GetPrimaryIdentifier(src) or 'console',
+        actorName = src ~= 0 and tsivtools.GetName(src) or 'server console',
         target = targetIdentifier,
         targetName = targetName,
         data = data,
@@ -92,19 +92,19 @@ function Logs.Staff(src, message, target, data)
 end
 
 function Logs.Search(query, limit, category)
-    query = TSIV.SafeString(query, 64):lower()
-    limit = TSIV.ToInt(limit, 1, 100) or 25
+    query = tsivtools.SafeString(query, 64):lower()
+    limit = tsivtools.ToInt(limit, 1, 100) or 25
 
     local results = {}
 
-    if TSIV.Storage.UsingMysql() then
+    if tsivtools.Storage.UsingMysql() then
         local like = '%' .. query .. '%'
         local sql = ([[
-            SELECT id, category, created_at AS at, actor, actor_name AS actorName,
-                   target, target_name AS targetName, message, data
+            SELECT id, category, createdat AS at, actor, actorname AS actorName,
+                   target, targetname AS targetName, message, data
             FROM `%s`
             WHERE (LOWER(actor) LIKE ? OR LOWER(target) LIKE ?
-                   OR LOWER(actor_name) LIKE ? OR LOWER(target_name) LIKE ?)
+                   OR LOWER(actorname) LIKE ? OR LOWER(targetname) LIKE ?)
         ]]):format(Config.Database.logTable)
         local params = { like, like, like, like }
         if category and category ~= 'all' then
@@ -112,7 +112,7 @@ function Logs.Search(query, limit, category)
             params[#params + 1] = category
         end
         sql = sql .. ' ORDER BY id DESC LIMIT ' .. limit
-        results = TSIV.Storage.Query(sql, params) or {}
+        results = tsivtools.Storage.Query(sql, params) or {}
     else
         local store = fileStore()
         for index = #store, 1, -1 do
@@ -141,11 +141,11 @@ function Logs.Summary(query)
     return counts, #entries
 end
 
-TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
-    local query = TSIV.SafeString(payload.query, 64)
+tsivtools.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
+    local query = tsivtools.SafeString(payload.query, 64)
     if query == '' then return { lines = { 'Nothing to search for !' } } end
 
-    local category = TSIV.SafeString(payload.category, 16)
+    local category = tsivtools.SafeString(payload.category, 16)
     local entries = Logs.Search(query, payload.limit, category ~= '' and category or nil)
     local counts, total = Logs.Summary(query)
 
@@ -168,7 +168,7 @@ TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
                 data = ok and decoded or nil
             end
             lines[#lines + 1] = ('[%s] %-9s %s'):format(
-                TSIV.FormatTimestamp(entry.at), entry.category, entry.message)
+                tsivtools.FormatTimestamp(entry.at), entry.category, entry.message)
             local who = {}
             if entry.actor ~= '' then
                 who[#who + 1] = ('by %s %s'):format(entry.actorName ~= '' and entry.actorName or '?', entry.actor)
@@ -187,14 +187,14 @@ TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
     return { title = ('TsivTools log lookup: %s'):format(query), lines = lines }
 end)
 
-TSIV.RegisterRequest('logs.recent', 'staff.logs', function(src, payload)
-    local category = TSIV.SafeString(payload.category, 16)
+tsivtools.RegisterRequest('logs.recent', 'staff.logs', function(src, payload)
+    local category = tsivtools.SafeString(payload.category, 16)
     if category == '' then category = 'all' end
     local entries = Logs.Search('', payload.limit, category)
     local lines = {}
     for _, entry in ipairs(entries) do
         lines[#lines + 1] = ('[%s] %-9s %s%s'):format(
-            TSIV.FormatTimestamp(entry.at),
+            tsivtools.FormatTimestamp(entry.at),
             entry.category,
             entry.message,
             entry.actorName ~= '' and ('  (by %s)'):format(entry.actorName) or '')
@@ -209,10 +209,10 @@ AddEventHandler('playerJoining', function()
     local src = source
     Logs.Write({
         category = 'connect',
-        message = ('%s joined'):format(TSIV.Describe(src)),
-        actor = TSIV.GetPrimaryIdentifier(src),
-        actorName = TSIV.GetName(src),
-        data = { steam = TSIV.GetSteamId(src) },
+        message = ('%s joined'):format(tsivtools.Describe(src)),
+        actor = tsivtools.GetPrimaryIdentifier(src),
+        actorName = tsivtools.GetName(src),
+        data = { steam = tsivtools.GetSteamId(src) },
     })
 end)
 
@@ -220,8 +220,8 @@ AddEventHandler('playerDropped', function(reason)
     local src = source
     Logs.Write({
         category = 'connect',
-        message = ('%s left (%s)'):format(TSIV.Describe(src), TSIV.SafeString(reason or '', 80)),
-        actor = TSIV.GetPrimaryIdentifier(src),
-        actorName = TSIV.GetName(src),
+        message = ('%s left (%s)'):format(tsivtools.Describe(src), tsivtools.SafeString(reason or '', 80)),
+        actor = tsivtools.GetPrimaryIdentifier(src),
+        actorName = tsivtools.GetName(src),
     })
 end)

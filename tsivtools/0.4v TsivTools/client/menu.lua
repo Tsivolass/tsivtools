@@ -1,6 +1,6 @@
-TSIV.Menu = {}
+tsivtools.Menu = {}
 
-local Menu = TSIV.Menu
+local Menu = tsivtools.Menu
 local Item = {}
 Item.__index = Item
 
@@ -114,8 +114,6 @@ function MenuObject:SelectedItem()
     return self.items[index]
 end
 
--- NUI ------------------------------------------------------------------------
-
 local function accent()
     local c = Config.MenuColour
     return ('rgb(%d, %d, %d)'):format(c[1] or 76, c[2] or 120, c[3] or 255)
@@ -172,8 +170,6 @@ local function buildPayload()
     }
 end
 
--- Cheap, deterministic fingerprint of what is currently on screen, so the page
--- is only re-rendered when something actually changed.
 local function signature()
     local maxVisible = Config.MenuMaxVisible
     local total = #current.items
@@ -212,8 +208,6 @@ local function hideUi()
     lastSignature = nil
     SendNuiMessage(json.encode({ action = 'menuClose' }))
 end
-
--- ----------------------------------------------------------------------------
 
 local function firstSelectable(from, direction)
     local count = #current.items
@@ -419,7 +413,6 @@ CreateThread(function()
     while true do
         if current then
             handleInput()
-            -- handleInput may have closed the menu (back on the root menu)
             if current then pushUi() end
             Wait(0)
         else
@@ -487,7 +480,7 @@ local function nuiInput(title, default, maxLength, numeric)
     Menu.LockInput(false)
 
     if timedOut then
-        TSIV.Notify('The text box timed out.', 'error')
+        tsivtools.Notify('The text box timed out.', 'error')
         return nil
     end
 
@@ -520,14 +513,14 @@ local function nativeInput(title, default, maxLength)
     return result
 end
 
-function TSIV.Input(title, default, maxLength)
+function tsivtools.Input(title, default, maxLength)
     if Config.UseNuiInput then
         return nuiInput(title, default, maxLength, false)
     end
     return nativeInput(title, default, maxLength)
 end
 
-function TSIV.InputNumber(title, default, maxLength)
+function tsivtools.InputNumber(title, default, maxLength)
     local value
     if Config.UseNuiInput then
         value = nuiInput(title, default and tostring(default) or '', maxLength or 10, true)
@@ -540,7 +533,7 @@ function TSIV.InputNumber(title, default, maxLength)
 end
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource ~= TSIV.resource then return end
+    if resource ~= tsivtools.resource then return end
     SetNuiFocus(false, false)
     hideUi()
 end)

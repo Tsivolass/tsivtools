@@ -1,7 +1,7 @@
-TSIV.Bans = {}
+tsivtools.Bans = {}
 
-local Bans = TSIV.Bans
-local Storage = TSIV.Storage
+local Bans = tsivtools.Bans
+local Storage = tsivtools.Storage
 local nextId = 1
 
 CreateThread(function()
@@ -13,7 +13,8 @@ CreateThread(function()
 end)
 
 local function isExpired(ban)
-    return ban.expires_at > 0 and ban.expires_at <= os.time()
+    local expires = tonumber(ban.expiresat) or 0
+    return expires > 0 and expires <= os.time()
 end
 
 function Bans.IsActive(ban)
@@ -21,7 +22,8 @@ function Bans.IsActive(ban)
 end
 
 local function expiryText(ban)
-    return ban.expires_at > 0 and TSIV.FormatTimestamp(ban.expires_at) or Config.bans.permanentText
+    local expires = tonumber(ban.expiresat) or 0
+    return expires > 0 and tsivtools.FormatTimestamp(expires) or Config.bans.permanentText
 end
 
 function Bans.Add(identifiers, name, reason, minutes, bannedBy)
@@ -29,29 +31,29 @@ function Bans.Add(identifiers, name, reason, minutes, bannedBy)
     if not identifiers or #identifiers == 0 then return nil end
 
     minutes = tonumber(minutes) or 0
-    reason = TSIV.SafeString(reason, 200)
+    reason = tsivtools.SafeString(reason, 200)
     if reason == '' then reason = 'No reason given' end
 
     local ban = {
         id = nextId,
         identifier = identifiers[1],
         identifiers = identifiers,
-        name = TSIV.SafeString(name, 48),
+        name = tsivtools.SafeString(name, 48),
         reason = reason,
-        banned_by = TSIV.SafeString(bannedBy or 'TsivTools', 48),
-        created_at = os.time(),
-        expires_at = minutes > 0 and os.time() + math.floor(minutes * 60) or 0,
+        bannedby = tsivtools.SafeString(bannedBy or 'TsivTools', 48),
+        createdat = os.time(),
+        expiresat = minutes > 0 and os.time() + math.floor(minutes * 60) or 0,
         active = 1,
     }
     nextId = nextId + 1
 
     if Storage.UsingMysql() then
         local id = Storage.Insert(([[
-            INSERT INTO `%s` (identifier, identifiers, name, reason, banned_by, created_at, expires_at, active)
+            INSERT INTO `%s` (identifier, identifiers, name, reason, bannedby, createdat, expiresat, active)
             VALUES (?, ?, ?, ?, ?, ?, ?, 1)
         ]]):format(Config.database.banTable), {
             ban.identifier, json.encode(ban.identifiers), ban.name, ban.reason,
-            ban.banned_by, ban.created_at, ban.expires_at,
+            ban.bannedby, ban.createdat, ban.expiresat,
         })
         if not id then return nil end
         ban.id = id
@@ -62,15 +64,15 @@ function Bans.Add(identifiers, name, reason, minutes, bannedBy)
         Storage.Flush('bans')
     end
 
-    TSIV.Logs.Write({
+    tsivtools.Logs.Write({
         category = 'ban',
         message = ('Banned %s for %s - %s'):format(
-            ban.name ~= '' and ban.name or ban.identifier, TSIV.FormatDuration(minutes), ban.reason),
-        actor = ban.banned_by,
-        actorName = ban.banned_by,
+            ban.name ~= '' and ban.name or ban.identifier, tsivtools.FormatDuration(minutes), ban.reason),
+        actor = ban.bannedby,
+        actorName = ban.bannedby,
         target = ban.identifier,
         targetName = ban.name,
-        data = { banId = ban.id, expires = ban.expires_at, identifiers = ban.identifiers },
+        data = { banId = ban.id, expires = ban.expiresat, identifiers = ban.identifiers },
     })
 
     return ban
@@ -161,7 +163,7 @@ function Bans.Remove(banId)
 end
 
 function Bans.List(query, limit)
-    query = TSIV.SafeString(query, 64):lower()
+    query = tsivtools.SafeString(query, 64):lower()
     limit = math.min(limit or 30, 100)
     local out = {}
 
@@ -193,13 +195,13 @@ end
 
 function Bans.BanPlayer(target, reason, minutes, bannedBy)
     local identifiers = {}
-    for _, identifier in pairs(TSIV.GetIdentifiers(target)) do
+    for _, identifier in pairs(tsivtools.GetIdentifiers(target)) do
         identifiers[#identifiers + 1] = identifier
     end
 
-    local ban = Bans.Add(identifiers, TSIV.GetName(target), reason, minutes, bannedBy)
+    local ban = Bans.Add(identifiers, tsivtools.GetName(target), reason, minutes, bannedBy)
     if not ban then
-        DropPlayer(target, Config.bans.message:format(TSIV.SafeString(reason, 200), Config.bans.permanentText, '?'))
+        DropPlayer(target, Config.bans.message:format(tsivtools.SafeString(reason, 200), Config.bans.permanentText, '?'))
         return nil
     end
 
@@ -207,8 +209,8 @@ function Bans.BanPlayer(target, reason, minutes, bannedBy)
         DropPlayer(target, Config.bans.message:format(ban.reason, expiryText(ban), tostring(ban.id)))
     end
 
-    if TSIV.Clips then
-        TSIV.Clips.Before(target, ban.reason, drop)
+    if tsivtools.Clips then
+        tsivtools.Clips.Before(target, ban.reason, drop)
     else
         drop()
     end
@@ -243,37 +245,37 @@ AddEventHandler('playerConnecting', function(name, setKickReason, deferrals)
     deferrals.done()
 end)
 
-TSIV.RegisterAction('player.ban', 'player.ban', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.ban', 'player.ban', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'That player isnt online !', 'error')
+        tsivtools.Notify(src, 'That player isnt online !', 'error')
         return
     end
 
-    local minutes = TSIV.ToInt(payload.minutes, 0, 60 * 24 * 3650) or 0
-    local targetName = TSIV.GetName(target)
-    local ban = Bans.BanPlayer(target, payload.reason, minutes, TSIV.GetName(src))
+    local minutes = tsivtools.ToInt(payload.minutes, 0, 60 * 24 * 3650) or 0
+    local targetName = tsivtools.GetName(target)
+    local ban = Bans.BanPlayer(target, payload.reason, minutes, tsivtools.GetName(src))
     if not ban then
-        TSIV.Notify(src, 'The ban could not be stored !!', 'error')
+        tsivtools.Notify(src, 'The ban could not be stored !!', 'error')
         return
     end
 
-    TSIV.Notify(src, ('Banned %s (%s) - ban ID %s'):format(targetName, TSIV.FormatDuration(minutes), ban.id), 'success')
-    TSIV.Logs.Staff(src, ('Banned %s for %s - %s'):format(targetName, TSIV.FormatDuration(minutes), ban.reason), ban.identifier)
-    TSIV.StaffBroadcast('mod', ('%s%s banned %s (%s)'):format(Config.prefix, TSIV.GetName(src), targetName, TSIV.FormatDuration(minutes)))
+    tsivtools.Notify(src, ('Banned %s (%s) - ban ID %s'):format(targetName, tsivtools.FormatDuration(minutes), ban.id), 'success')
+    tsivtools.Logs.Staff(src, ('Banned %s for %s - %s'):format(targetName, tsivtools.FormatDuration(minutes), ban.reason), ban.identifier)
+    tsivtools.StaffBroadcast('mod', ('%s%s banned %s (%s)'):format(Config.prefix, tsivtools.GetName(src), targetName, tsivtools.FormatDuration(minutes)))
 end)
 
-TSIV.RegisterAction('player.unban', 'player.unban', function(src, payload)
+tsivtools.RegisterAction('player.unban', 'player.unban', function(src, payload)
     local ban = Bans.Remove(payload.banId)
     if not ban then
-        TSIV.Notify(src, 'No active ban with that ID !', 'error')
+        tsivtools.Notify(src, 'No active ban with that ID !', 'error')
         return
     end
-    TSIV.Notify(src, ('removed ban %s (%s)'):format(ban.id, ban.name ~= '' and ban.name or ban.identifier), 'success')
-    TSIV.Logs.Staff(src, ('removed ban %s on %s'):format(ban.id, ban.identifier), ban.identifier)
+    tsivtools.Notify(src, ('removed ban %s (%s)'):format(ban.id, ban.name ~= '' and ban.name or ban.identifier), 'success')
+    tsivtools.Logs.Staff(src, ('removed ban %s on %s'):format(ban.id, ban.identifier), ban.identifier)
 end)
 
-TSIV.RegisterRequest('bans.list', 'player.unban', function(_, payload)
+tsivtools.RegisterRequest('bans.list', 'player.unban', function(_, payload)
     local out = {}
     for _, ban in ipairs(Bans.List(payload.query, 40)) do
         out[#out + 1] = {
@@ -281,8 +283,8 @@ TSIV.RegisterRequest('bans.list', 'player.unban', function(_, payload)
             name = ban.name,
             identifier = ban.identifier,
             reason = ban.reason,
-            bannedBy = ban.banned_by,
-            expires = ban.expires_at,
+            bannedBy = ban.bannedby,
+            expires = ban.expiresat,
             expiresText = expiryText(ban),
         }
     end

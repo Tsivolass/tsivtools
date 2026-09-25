@@ -1,8 +1,8 @@
-TSIV.Security = {}
-local Security = TSIV.Security
-local Logs = TSIV.Logs
+tsivtools.Security = {}
+local Security = tsivtools.Security
+local Logs = tsivtools.Logs
 
-local history = TSIV.Storage.Get('player_history')
+local history = tsivtools.Storage.Get('player_history')
 local sessions = {}
 local monitors = {}
 local waveCache = { detections = {}, status = nil, fetchedAt = 0 }
@@ -123,14 +123,14 @@ CreateThread(function()
 end)
 
 local function remember(src)
-    local identifier = TSIV.GetPrimaryIdentifier(src)
-    local ids = TSIV.GetIdentifiers(src)
+    local identifier = tsivtools.GetPrimaryIdentifier(src)
+    local ids = tsivtools.GetIdentifiers(src)
     local entry = history[identifier] or {
         identifier = identifier, names = {}, identifiers = {}, joins = {},
         firstSeen = now(),
     }
     entry.lastSeen = now()
-    entry.currentName = TSIV.GetName(src)
+    entry.currentName = tsivtools.GetName(src)
     entry.currentId = src
     entry.identifiers = ids
     local known = false
@@ -142,13 +142,13 @@ local function remember(src)
     entry.joins[#entry.joins + 1] = entry.lastSeen
     if #entry.joins > 30 then table.remove(entry.joins, 1) end
     history[identifier] = entry
-    TSIV.Storage.MarkDirty('player_history')
+    tsivtools.Storage.MarkDirty('player_history')
 end
 
 local function onlineByIdentifier(identifier)
     for _, raw in ipairs(GetPlayers()) do
         local src = tonumber(raw)
-        if TSIV.GetPrimaryIdentifier(src) == identifier then return src end
+        if tsivtools.GetPrimaryIdentifier(src) == identifier then return src end
     end
 end
 
@@ -156,13 +156,13 @@ local function activeIdentifiers()
     local out = {}
     for _, raw in ipairs(GetPlayers()) do
         local src = tonumber(raw)
-        out[TSIV.GetPrimaryIdentifier(src)] = true
+        out[tsivtools.GetPrimaryIdentifier(src)] = true
     end
     return out
 end
 
 local function logEntries(limit)
-    return TSIV.Logs.Search('', math.min(limit or 100, 100), 'all')
+    return tsivtools.Logs.Search('', math.min(limit or 100, 100), 'all')
 end
 
 local kindWords = {
@@ -262,19 +262,19 @@ function Security.WaveShieldStatus()
 end
 
 local function profile(src, target)
-    local identifier = TSIV.GetPrimaryIdentifier(target)
+    local identifier = tsivtools.GetPrimaryIdentifier(target)
     local entry = history[identifier] or {}
     local detections = allDetections()
     local risk, count = riskFor(identifier, detections)
     local lines = {
-        ('player: %s (id %s)'):format(TSIV.GetName(target), target),
+        ('player: %s (id %s)'):format(tsivtools.GetName(target), target),
         ('risk score: %d/100'):format(risk),
         ('session duration: %s'):format(os.date('!%Hh %Mm', now() - (sessions[target] or now()))),
         ('first seen: %s'):format(entry.firstSeen and os.date('%Y-%m-%d %H:%M:%S', entry.firstSeen) or 'this session'),
         ('last seen: %s'):format(entry.lastSeen and os.date('%Y-%m-%d %H:%M:%S', entry.lastSeen) or 'now'),
         ('detections: %d'):format(count),
         ('previous names: %s'):format(table.concat(entry.names or {}, ', ')),
-        ('identifiers: %s'):format(json.encode(entry.identifiers or TSIV.GetIdentifiers(target))),
+        ('identifiers: %s'):format(json.encode(entry.identifiers or tsivtools.GetIdentifiers(target))),
     }
     for _, item in ipairs(detections) do
         if item.source == identifier then
@@ -304,7 +304,7 @@ local function profile(src, target)
     return { title = 'Player Security Profile', lines = lines }
 end
 
-TSIV.RegisterRequest('security.status', 'security.view', function()
+tsivtools.RegisterRequest('security.status', 'security.view', function()
     local detections = allDetections()
     local online = activeIdentifiers()
     local active = {}
@@ -320,7 +320,7 @@ TSIV.RegisterRequest('security.status', 'security.view', function()
         ('temporary monitors: %d'):format((function()
             local count = 0
             for target, expires in pairs(monitors) do
-                if expires > now() and online[TSIV.GetPrimaryIdentifier(target)] then count = count + 1 end
+                if expires > now() and online[tsivtools.GetPrimaryIdentifier(target)] then count = count + 1 end
             end
             return count
         end)()),
@@ -336,7 +336,7 @@ TSIV.RegisterRequest('security.status', 'security.view', function()
     return { title = 'Security Center', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.waveshield.bans', 'security.waveshield.ban', function()
+tsivtools.RegisterRequest('security.waveshield.bans', 'security.waveshield.ban', function()
     local response, err = waveGet(Config.waveshield.api.serverBansPath)
     if not response then
         return { title = 'WaveShield bans', lines = { 'Unavailable: ' .. (err or 'unknown error') } }
@@ -351,33 +351,33 @@ TSIV.RegisterRequest('security.waveshield.bans', 'security.waveshield.ban', func
     return { title = 'WaveShield bans', lines = lines }
 end)
 
-TSIV.RegisterAction('security.waveshield.ban', 'security.waveshield.ban', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
-    if not target then TSIV.Notify(src, 'Player is not online.', 'error'); return end
-    local details = TSIV.GetIdentifiers(target)
-    local playerId = details.license or TSIV.GetPrimaryIdentifier(target)
-    local duration = TSIV.ToInt(payload.duration, 0, 2147483647)
-    local reason = TSIV.SafeString(payload.reason, 255)
-    if not duration or reason == '' then TSIV.Notify(src, 'A valid duration and reason are required.', 'error'); return end
+tsivtools.RegisterAction('security.waveshield.ban', 'security.waveshield.ban', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
+    if not target then tsivtools.Notify(src, 'Player is not online.', 'error'); return end
+    local details = tsivtools.GetIdentifiers(target)
+    local playerId = details.license or tsivtools.GetPrimaryIdentifier(target)
+    local duration = tsivtools.ToInt(payload.duration, 0, 2147483647)
+    local reason = tsivtools.SafeString(payload.reason, 255)
+    if not duration or reason == '' then tsivtools.Notify(src, 'A valid duration and reason are required.', 'error'); return end
     local response, err = waveRequest('POST', Config.waveshield.api.banPath, nil, {
         playerId = playerId, reason = reason, duration = duration,
-        by = TSIV.GetName(src),
+        by = tsivtools.GetName(src),
     })
-    if not response then TSIV.Notify(src, 'WaveShield ban failed: ' .. (err or 'unknown error'), 'error'); return end
-    Logs.Staff(src, ('WaveShield banned %s'):format(TSIV.Describe(target)), target, { reason = reason, duration = duration })
-    TSIV.Notify(src, 'WaveShield ban created.', 'success')
+    if not response then tsivtools.Notify(src, 'WaveShield ban failed: ' .. (err or 'unknown error'), 'error'); return end
+    Logs.Staff(src, ('WaveShield banned %s'):format(tsivtools.Describe(target)), target, { reason = reason, duration = duration })
+    tsivtools.Notify(src, 'WaveShield ban created.', 'success')
 end)
 
-TSIV.RegisterAction('security.waveshield.unban', 'security.waveshield.unban', function(src, payload)
-    local banId = TSIV.SafeString(payload.banId, 128)
-    if banId == '' then TSIV.Notify(src, 'A WaveShield ban ID is required.', 'error'); return end
+tsivtools.RegisterAction('security.waveshield.unban', 'security.waveshield.unban', function(src, payload)
+    local banId = tsivtools.SafeString(payload.banId, 128)
+    if banId == '' then tsivtools.Notify(src, 'A WaveShield ban ID is required.', 'error'); return end
     local response, err = waveRequest('POST', Config.waveshield.api.unbanPath, nil, { banId = banId })
-    if not response then TSIV.Notify(src, 'WaveShield unban failed: ' .. (err or 'unknown error'), 'error'); return end
+    if not response then tsivtools.Notify(src, 'WaveShield unban failed: ' .. (err or 'unknown error'), 'error'); return end
     Logs.Staff(src, ('WaveShield unbanned ban %s'):format(banId))
-    TSIV.Notify(src, 'WaveShield ban removed.', 'success')
+    tsivtools.Notify(src, 'WaveShield ban removed.', 'success')
 end)
 
-TSIV.RegisterRequest('security.waveshield', 'security.view', function()
+tsivtools.RegisterRequest('security.waveshield', 'security.view', function()
     local status = Security.WaveShieldStatus()
     return {
         title = 'WaveShield status',
@@ -390,7 +390,7 @@ TSIV.RegisterRequest('security.waveshield', 'security.view', function()
     }
 end)
 
-TSIV.RegisterRequest('security.waveshield.verify', 'security.view', function()
+tsivtools.RegisterRequest('security.waveshield.verify', 'security.view', function()
     local response, err = waveRequest('POST', Config.waveshield.api.verifyPath, nil, {})
     if not response then
         return {
@@ -412,7 +412,7 @@ TSIV.RegisterRequest('security.waveshield.verify', 'security.view', function()
     }
 end)
 
-TSIV.RegisterRequest('security.waveshield.logs', 'security.view', function()
+tsivtools.RegisterRequest('security.waveshield.logs', 'security.view', function()
     local response, err = waveGet(Config.waveshield.api.logsPath, {
         limit = Config.waveshield.polling.recentDetectionLimit,
     })
@@ -430,7 +430,7 @@ TSIV.RegisterRequest('security.waveshield.logs', 'security.view', function()
     return { title = 'WaveShield detection feed', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.waveshield.players', 'security.view', function()
+tsivtools.RegisterRequest('security.waveshield.players', 'security.view', function()
     local response, err = waveGet(Config.waveshield.api.playersPath)
     if not response then
         return { title = 'WaveShield players', lines = { 'Unavailable: ' .. (err or 'unknown error') } }
@@ -445,8 +445,8 @@ TSIV.RegisterRequest('security.waveshield.players', 'security.view', function()
     return { title = 'WaveShield online players', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.waveshield.profile', 'security.view', function(_, payload)
-    local identifier = TSIV.SafeString(payload.identifier, 160)
+tsivtools.RegisterRequest('security.waveshield.profile', 'security.view', function(_, payload)
+    local identifier = tsivtools.SafeString(payload.identifier, 160)
     if identifier == '' then return { title = 'WaveShield player profile', lines = { 'Identifier is required.' } } end
     local path = Config.waveshield.api.analysisPath:format(urlEncode(identifier))
     local response, err = waveGet(path)
@@ -468,7 +468,7 @@ TSIV.RegisterRequest('security.waveshield.profile', 'security.view', function(_,
     return { title = 'WaveShield player profile', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.health', 'security.view', function()
+tsivtools.RegisterRequest('security.health', 'security.view', function()
     local status = Security.WaveShieldStatus()
     local lines = {
         ('WaveShield: %s'):format(status.state),
@@ -480,7 +480,7 @@ TSIV.RegisterRequest('security.health', 'security.view', function()
     return { title = 'Security Health Dashboard', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.detections', 'security.view', function(_, payload)
+tsivtools.RegisterRequest('security.detections', 'security.view', function(_, payload)
     local severity = payload.severity and payload.severity:lower()
     local kind = payload.kind and payload.kind:lower()
     local lines = {}
@@ -495,7 +495,7 @@ TSIV.RegisterRequest('security.detections', 'security.view', function(_, payload
     return { title = 'Unified Detection Feed', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.alerts', 'security.view', function()
+tsivtools.RegisterRequest('security.alerts', 'security.view', function()
     local online = activeIdentifiers()
     local detections = allDetections()
     local out = {}
@@ -512,14 +512,14 @@ TSIV.RegisterRequest('security.alerts', 'security.view', function()
     return out
 end)
 
-TSIV.RegisterRequest('security.profile', 'security.view', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterRequest('security.profile', 'security.view', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then return { title = 'Player Security Profile', lines = { 'Player is not online.' } } end
-    Logs.Staff(src, ('Opened security profile for %s'):format(TSIV.Describe(target)), target)
+    Logs.Staff(src, ('Opened security profile for %s'):format(tsivtools.Describe(target)), target)
     return profile(src, target)
 end)
 
-TSIV.RegisterRequest('security.statistics', 'security.view', function()
+tsivtools.RegisterRequest('security.statistics', 'security.view', function()
     local detections = allDetections()
     local counts = {}
     for _, item in ipairs(detections) do counts[item.kind] = (counts[item.kind] or 0) + 1 end
@@ -531,13 +531,13 @@ end)
 
 RegisterNetEvent('tsivtools:security:monitor', function(target, minutes)
     local src = source
-    if not TSIV.Can(src, 'security.monitor') then return end
-    target = TSIV.ResolveTarget(target)
-    minutes = TSIV.ToInt(minutes, 1, Config.security.maxMonitorMinutes)
-    if not target or not minutes then TSIV.Notify(src, 'Invalid player or monitor duration.', 'error'); return end
-    Logs.Staff(src, ('Started a %d minute security monitor for %s'):format(minutes, TSIV.Describe(target)), target)
+    if not tsivtools.Can(src, 'security.monitor') then return end
+    target = tsivtools.ResolveTarget(target)
+    minutes = tsivtools.ToInt(minutes, 1, Config.security.maxMonitorMinutes)
+    if not target or not minutes then tsivtools.Notify(src, 'Invalid player or monitor duration.', 'error'); return end
+    Logs.Staff(src, ('Started a %d minute security monitor for %s'):format(minutes, tsivtools.Describe(target)), target)
     monitors[target] = now() + minutes * 60
-    TSIV.Notify(src, ('Monitoring %s for %d minute(s).'):format(TSIV.GetName(target), minutes), 'success')
+    tsivtools.Notify(src, ('Monitoring %s for %d minute(s).'):format(tsivtools.GetName(target), minutes), 'success')
 end)
 
 AddEventHandler('playerJoining', function()
@@ -548,11 +548,11 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    local identifier = TSIV.GetPrimaryIdentifier(src)
+    local identifier = tsivtools.GetPrimaryIdentifier(src)
     if history[identifier] then history[identifier].currentId = nil end
     monitors[src] = nil
     sessions[src] = nil
-    TSIV.Storage.MarkDirty('player_history')
+    tsivtools.Storage.MarkDirty('player_history')
 end)
 
 CreateThread(function()

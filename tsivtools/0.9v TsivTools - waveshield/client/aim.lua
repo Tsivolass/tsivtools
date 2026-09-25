@@ -10,7 +10,7 @@ local lastShot = false
 
 local function active()
     if not Config.anticheat.enabled then return false end
-    if not TSIV.Module('aimbot') then return false end
+    if not tsivtools.Module('aimbot') then return false end
     return rules.enabled ~= false
 end
 
@@ -67,7 +67,7 @@ local function report()
         packed[#packed + 1] = math.floor(sample.pitch * 10.0 + 0.5)
     end
 
-    TriggerServerEvent(TSIV.Events.aim, packed, usingPad())
+    TriggerServerEvent(tsivtools.Events.aim, packed, usingPad())
 end
 
 CreateThread(function()
