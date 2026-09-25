@@ -1,7 +1,4 @@
-
-
 Config = {}
-
 
 Config.Prefix = '^5[tsivtools]^7 '
 
@@ -9,25 +6,19 @@ Config.ConsolePrefix = '[tsivtools] '
 
 Config.MenuCommand = 'tsivtools'
 
-
 Config.MenuKey = 'INSERT'
 
 Config.MenuPosition = 'right'
 
--- Menu accent colour {r, g, b}. Used for the header bar and the selection bar.
 Config.MenuColour = { 61, 0, 217 }
 
 Config.MenuMaxVisible = 10
 
--- Show a small "TSIVTOOLS" watermark while the menu is open.
 Config.MenuWatermark = true
 
 Config.MenuSounds = true
 
-
 Config.UseNuiInput = true
-
-
 
 Config.Ranks = {
     { name = 'mod',        label = 'Moderator',  level = 10 },
@@ -37,14 +28,12 @@ Config.Ranks = {
 }
 
 Config.Staff = {
-
 }
 
 Config.UseAcePermissions = true
 Config.AcePrefix = 'tsivtools'
 
-
--- 'esx' admin maps to  tsivtools rank of the same name if one exists 
+-- 'esx' admin maps to  tsivtools rank of the same name if one exists
 Config.Framework = 'none'
 
 Config.FrameworkGroupMap = {
@@ -53,13 +42,10 @@ Config.FrameworkGroupMap = {
     ['superadmin'] = 'superadmin',
     ['owner']      = 'owner',
 }
-ng.
 
 Config.Permissions = {
-    -- menu itself
     ['menu.open']              = 'mod',
 
-    -- self
     ['self.godmode']           = 'admin',
     ['self.invisible']         = 'admin',
     ['self.noclip']            = 'mod',
@@ -70,7 +56,6 @@ Config.Permissions = {
     ['self.tpcoords']          = 'admin',
     ['self.tpsaved']           = 'mod',
 
-    -- players
     ['player.list']            = 'mod',
     ['player.goto']            = 'mod',
     ['player.bring']           = 'mod',
@@ -86,7 +71,6 @@ Config.Permissions = {
     ['player.setrank']         = 'owner',
     ['player.identifiers']     = 'admin',
 
-    -- vehicles
     ['vehicle.spawn']          = 'admin',
     ['vehicle.delete']         = 'mod',
     ['vehicle.repair']         = 'mod',
@@ -95,19 +79,16 @@ Config.Permissions = {
     ['vehicle.dvarea']         = 'admin',
     ['vehicle.dvall']          = 'superadmin',
 
-    -- props / entities
     ['prop.deletenearest']     = 'mod',
     ['prop.deletearea']        = 'admin',
     ['prop.deleteall']         = 'superadmin',
     ['prop.deleteplayer']      = 'admin',
     ['prop.toggleproplog']     = 'admin',
 
-    -- garage
     ['garage.lookup']          = 'mod',
     ['garage.give']            = 'superadmin',
     ['garage.remove']          = 'superadmin',
 
-    -- staff / logs
     ['staff.online']           = 'mod',
     ['staff.chat']             = 'mod',
     ['staff.announce']         = 'admin',
@@ -115,7 +96,6 @@ Config.Permissions = {
     ['staff.alerts']           = 'superadmin', -- ac alerts
     ['staff.serverinfo']       = 'admin',
 }
-
 
 Config.MenuSections = {
     { id = 'self',    label = 'Self' },
@@ -125,8 +105,6 @@ Config.MenuSections = {
     { id = 'garage',  label = 'Garage' },
     { id = 'staff',   label = 'Staff & Logs' },
 }
-
-
 
 Config.Teleports = {
     { label = 'Legion Square',   coords = vector3(195.0, -933.0, 30.7) },
@@ -138,42 +116,39 @@ Config.Teleports = {
     { label = 'Mount Chiliad',   coords = vector3(501.0, 5604.0, 797.9) },
 }
 
-
-
 Config.VehicleList = {
     { label = 'Sultan RS',   model = 'sultanrs' }, -- please change this list :)), i added sultan for testing purposes :))
 }
 
 Config.AreaRadiusOptions = { 5, 10, 25, 50, 100, 250 }
 
-
-
 Config.Garage = {
-
-    -- 'file' or 'mysql'  turn Config.Database.enabled on if mysql is turned on :)) 
+    -- 'file' or 'mysql'  turn Config.Database.enabled on if mysql is turned on :))
     mode = 'file',
 
 --used only with mysql
     table         = 'owned_vehicles',
-    ownerColumn   = 'owner',      
+    ownerColumn   = 'owner',
     plateColumn   = 'plate',
-    propsColumn   = 'vehicle',    
-    extraColumns  = {             
-        -- ['type']    = 'car',
-        -- ['job']     = nil,
-        -- ['stored']  = 1,
+    propsColumn   = 'vehicle',
+    extraColumns  = {
     },
 
     platePrefix = 'TSIV',
     plateLength = 8,
 }
 
-
-
 Config.AntiCheat = {
+    forgedEvents = {
+        enabled   = true,
+        action    = 'ban',
+        strikes   = 2,
+        banLength = 0,
+        reason    = 'Sent staff menu events without a staff rank',
+    },
+
     enabled = true,
 
-    
     logPropSpawns = false, -- NOT RECOMMENDED FOR COMMERCIAL SERVERS !
     propLogRank   = 'admin',
 
@@ -182,7 +157,7 @@ Config.AntiCheat = {
 
     logSpawnsToStore = true,
 
--- printing said props by name (basically useless, needed for testing purposes) 
+-- printing said props by name (basically useless, needed for testing purposes)
     knownModels = {
         'prop_barrel_01a',
         'prop_barrier_work05',
@@ -196,13 +171,12 @@ Config.AntiCheat = {
         'prop_ld_crate_01',
     },
 
-
     propSpam = {
         enabled   = true,
         threshold = 10,
         window    = 3.0,
-        action    = 'alert',           -- 'alert' | 'kick' | 'ban'
-        banLength = 0,                 -- minutes, 0 = permanent
+        action    = 'alert',
+        banLength = 0,
         reason    = 'Prop spawn flood',
         cleanup   = true,
     },
@@ -227,8 +201,7 @@ Config.AntiCheat = {
         cleanup   = true,
     },
 
-    alertRank = 'superadmin', 
-
+    alertRank = 'superadmin',
 
     blacklistedProps = {
         'prop_beach_fire',
@@ -265,29 +238,26 @@ Config.AntiCheat = {
         'a_c_killerwhale',
     },
 
-
-
-    blacklistAction    = 'log',        -- 'log' | 'kick' | 'ban'
-    blacklistBanLength = 0,            -- minutes, 0 = permanent
+    blacklistAction    = 'log',
+    blacklistBanLength = 0,
     blacklistReason    = 'Spawning a blacklisted model',
 
     explosions = {
         enabled   = true,
 
         blocked   = { 2, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41 },
-        threshold = 6,                
-        window    = 6.0,               
-        action    = 'alert',           -- 'alert' | 'kick' | 'ban'
+        threshold = 6,
+        window    = 6.0,
+        action    = 'alert',
         banLength = 0,
         reason    = 'Explosion spam',
     },
-
 
     client = {
         enabled = true,
         --speedhack check
         speedCheck        = true,
-        speedThreshold    = 12.0, 
+        speedThreshold    = 12.0,
         healthCheck       = true,
         maxHealth         = 200,
         maxArmour         = 100,
@@ -309,20 +279,17 @@ Config.AntiCheat = {
     cleanupOnDisconnect = false,
 }
 
-
-
 Config.Logging = {
     -- doesnt work for mysql :)
     maxEntries = 5000,
 
-    -- Categories that get written. Set one to false to stop recording it.
     categories = {
-        staff     = true,  
-        anticheat = true,   
-        connect   = true,  
+        staff     = true,
+        anticheat = true,
+        connect   = true,
         ban       = true,
         garage    = true,
-        props     = true,   
+        props     = true,
         chat      = false,
     },
 
@@ -350,22 +317,16 @@ Config.Logging = {
     },
 }
 
-
 Config.Database = {
-
     enabled = false, --boolean ;) (can also use install, but only for the first boot (also kinda useless except for testing))
-
 
     banTable = 'tsivtools_bans',
     logTable = 'tsivtools_logs',
 }
 
-
-
 Config.Bans = {
-    -- identifiers that get read for bans 
+    -- identifiers that get read for bans
     identifierTypes = { 'license', 'steam', 'discord', 'xbl', 'live', 'fivem' },
-
 
     message = 'You are banned from this server.\n\nReason: %s\nExpires: %s\nBan ID: %s',
 

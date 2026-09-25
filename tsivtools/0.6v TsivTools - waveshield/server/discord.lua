@@ -1,7 +1,7 @@
-TSIV.Discord = {}
+tsivtools.Discord = {}
 
 local queue = {}
-local sending = false
+local dropped = 0
 
 local function post(url, payload)
     PerformHttpRequest(url, function(status)
@@ -11,24 +11,50 @@ local function post(url, payload)
     end, 'POST', json.encode(payload), { ['Content-Type'] = 'application/json' })
 end
 
+local function embedSize(embed)
+    local size = #embed.title + #embed.description + #embed.footer.text
+    for _, field in ipairs(embed.fields) do
+        size = size + #field.name + #field.value
+    end
+    return size
+end
+
 CreateThread(function()
     while true do
         Wait(1200)
-        if #queue > 0 and not sending then
-            sending = true
-            local item = table.remove(queue, 1)
+        local item = table.remove(queue, 1)
+        if item then
+            local embeds = item.payload.embeds
+            local size = embedSize(embeds[1])
+            local index = 1
+            while index <= #queue and #embeds < 10 do
+                local waiting = queue[index]
+                if waiting.url == item.url then
+                    local extra = embedSize(waiting.payload.embeds[1])
+                    if size + extra > 5500 then break end
+                    embeds[#embeds + 1] = waiting.payload.embeds[1]
+                    size = size + extra
+                    table.remove(queue, index)
+                else
+                    index = index + 1
+                end
+            end
             post(item.url, item.payload)
-            sending = false
+        end
+        if dropped > 0 and #queue == 0 then
+            print(('%sdiscord was too slow, %d log message(s) were skipped'):format(Config.consoleprefix, dropped))
+            dropped = 0
         end
     end
 end)
 
-function TSIV.Discord.Send(category, record)
+function tsivtools.Discord.Send(category, record)
     local settings = Config.logging.discord
     if not settings.enabled then return end
 
-    local url = settings.webhooks[category]
-    if not url or url == '' then return end
+    local url = GetConvar('tsivtoolswebhook' .. category, '')
+    if url == '' then url = settings.webhooks[category] or '' end
+    if url == '' then return end
 
     local fields = {}
     if record.actor ~= '' then
@@ -52,6 +78,11 @@ function TSIV.Discord.Send(category, record)
         end
     end
 
+    if #queue >= 200 then
+        table.remove(queue, 1)
+        dropped = dropped + 1
+    end
+
     queue[#queue + 1] = {
         url = url,
         payload = {
@@ -62,8 +93,17 @@ function TSIV.Discord.Send(category, record)
                 description = record.message,
                 color = settings.colours[category] or 8421504,
                 fields = fields,
-                footer = { text = ('TsivTools  /  %s'):format(TSIV.FormatTimestamp(record.at)) },
+                footer = { text = ('TsivTools  /  %s'):format(tsivtools.FormatTimestamp(record.at)) },
             } },
         },
     }
 end
+
+CreateThread(function()
+    for category, url in pairs(Config.logging.discord.webhooks) do
+        if url ~= '' then
+            print(('%sthe %s discord webhook is written in config.lua, which every player downloads. Move it to server.cfg: set tsivtoolswebhook%s "<url>"')
+                :format(Config.consoleprefix, category, category))
+        end
+    end
+end)

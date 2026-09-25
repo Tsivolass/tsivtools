@@ -1,35 +1,35 @@
-local Logs = TSIV.Logs
+local Logs = tsivtools.Logs
 
 local function settings()
-    return TSIV.Storage.Get('settings')
+    return tsivtools.Storage.Get('settings')
 end
 
-function TSIV.Setting(key, default)
+function tsivtools.Setting(key, default)
     local value = settings()[key]
     if value == nil then return default end
     return value
 end
 
-function TSIV.SetSetting(key, value)
+function tsivtools.SetSetting(key, value)
     settings()[key] = value
-    TSIV.Storage.MarkDirty('settings')
-    TSIV.Storage.Flush('settings')
+    tsivtools.Storage.MarkDirty('settings')
+    tsivtools.Storage.Flush('settings')
 end
 
-function TSIV.PropLoggingEnabled()
-    return TSIV.Setting('logPropSpawns', Config.AntiCheat.logPropSpawns) and true or false
+function tsivtools.PropLoggingEnabled()
+    return tsivtools.Setting('logPropSpawns', Config.AntiCheat.logPropSpawns) and true or false
 end
 
 local function staffStore()
-    return TSIV.Storage.Get('staff')
+    return tsivtools.Storage.Get('staff')
 end
 
-function TSIV.StaffStore()
+function tsivtools.StaffStore()
     return staffStore()
 end
 
 local function run(target, command, payload)
-    TriggerClientEvent(TSIV.Events.run, target, command, payload or {})
+    TriggerClientEvent(tsivtools.Events.run, target, command, payload or {})
 end
 
 local function pedCoords(src)
@@ -42,75 +42,73 @@ local function distance(a, b)
     return #(vector3(a.x, a.y, a.z) - vector3(b.x, b.y, b.z))
 end
 
-TSIV.RegisterRequest('player.list', 'player.list', function(src)
+tsivtools.RegisterRequest('player.list', 'player.list', function(src)
     local out = {}
     for _, id in ipairs(GetPlayers()) do
         id = tonumber(id)
         local ped = GetPlayerPed(id)
-        local coords = ped ~= 0 and GetEntityCoords(ped) or vector3(0.0, 0.0, 0.0)
-        local rank = TSIV.GetRank(id)
+        local rank = tsivtools.GetRank(id)
         out[#out + 1] = {
             id = id,
-            name = TSIV.GetName(id),
+            name = tsivtools.GetName(id),
             rank = rank or nil,
-            rankLabel = rank and TSIV.RankLabel(rank) or nil,
+            rankLabel = rank and tsivtools.RankLabel(rank) or nil,
             ping = GetPlayerPing(id),
             health = ped ~= 0 and GetEntityHealth(ped) or 0,
-            coords = { x = coords.x, y = coords.y, z = coords.z },
         }
     end
     table.sort(out, function(a, b) return a.id < b.id end)
     return out
 end)
 
-TSIV.RegisterRequest('player.identifiers', 'player.identifiers', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterRequest('player.identifiers', 'player.identifiers', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
         return { title = 'TsivTools', lines = { 'Player isnt Online !' } }
     end
 
     local lines = {
-        ('name : %s'):format(TSIV.GetName(target)),
+        ('name : %s'):format(tsivtools.GetName(target)),
         ('id   : %s'):format(target),
-        ('rank : %s'):format(TSIV.GetRank(target) or 'none'),
+        ('rank : %s'):format(tsivtools.GetRank(target) or 'none'),
 
     }
-    for kind, identifier in pairs(TSIV.GetIdentifiers(target)) do
+    for kind, identifier in pairs(tsivtools.GetIdentifiers(target)) do
         lines[#lines + 1] = ('%-8s %s'):format(kind, identifier)
     end
 
-    Logs.Staff(src, ('Got identifiers of: %s'):format(TSIV.Describe(target)), target)
+    Logs.Staff(src, ('Got identifiers of: %s'):format(tsivtools.Describe(target)), target)
 
     return {
-        title = ('tsivtools identifiers: %s'):format(TSIV.GetName(target)),
+        title = ('tsivtools identifiers: %s'):format(tsivtools.GetName(target)),
         lines = lines,
-        identifier = TSIV.GetPrimaryIdentifier(target),
-        steam = TSIV.GetSteamId(target),
+        identifier = tsivtools.GetPrimaryIdentifier(target),
+        steam = tsivtools.GetSteamId(target),
     }
 end)
 
-TSIV.RegisterAction('player.goto', 'player.goto', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.goto', 'player.goto', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
     local coords = pedCoords(target)
     if not coords then
-        TSIV.Notify(src, 'Unavailable ped !', 'error')
+        tsivtools.Notify(src, 'Unavailable ped !', 'error')
         return
     end
 
     run(src, 'teleport', { x = coords.x, y = coords.y + 1.0, z = coords.z })
-    TSIV.Notify(src, ('Teleported to %s'):format(TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('Teleported to %s'):format(TSIV.Describe(target)), target)
+    tsivtools.Notify(src, ('Teleported to %s'):format(tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('Teleported to %s'):format(tsivtools.Describe(target)), target)
 end)
 
-TSIV.RegisterAction('player.bring', 'player.bring', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.bring', 'player.bring', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
@@ -118,33 +116,33 @@ TSIV.RegisterAction('player.bring', 'player.bring', function(src, payload)
     if not coords then return end
 
     run(target, 'teleport', { x = coords.x, y = coords.y + 1.0, z = coords.z })
-    TSIV.Notify(target, ('%s brought you'):format(TSIV.GetName(src)), 'info')
-    TSIV.Notify(src, ('Brought %s to you'):format(TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('Brought %s'):format(TSIV.Describe(target)), target)
+    tsivtools.Notify(target, ('%s brought you'):format(tsivtools.GetName(src)), 'info')
+    tsivtools.Notify(src, ('Brought %s to you'):format(tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('Brought %s'):format(tsivtools.Describe(target)), target)
 end)
 
-TSIV.RegisterAction('player.spectate', 'player.spectate', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.spectate', 'player.spectate', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
         run(src, 'spectate', { stop = true })
         return
     end
 
-    run(src, 'spectate', { target = target, name = TSIV.GetName(target) })
-    Logs.Staff(src, ('Started spectating %s'):format(TSIV.Describe(target)), target)
+    run(src, 'spectate', { target = target, name = tsivtools.GetName(target) })
+    Logs.Staff(src, ('Started spectating %s'):format(tsivtools.Describe(target)), target)
 end)
 
 local function simpleTargetAction(action, permission, command, message, logLine)
-    TSIV.RegisterAction(action, permission, function(src, payload)
-        local target = TSIV.ResolveTarget(payload.target)
+    tsivtools.RegisterAction(action, permission, function(src, payload)
+        local target = tsivtools.ResolveTarget(payload.target)
         if not target then
-            TSIV.Notify(src, 'Player isnt online !', 'error')
+            tsivtools.Notify(src, 'Player isnt online !', 'error')
             return
         end
 
-        run(target, command, payload)
-        TSIV.Notify(src, message:format(TSIV.GetName(target)), 'success')
-        Logs.Staff(src, logLine:format(TSIV.Describe(target)), target)
+        run(target, command, {})
+        tsivtools.Notify(src, message:format(tsivtools.GetName(target)), 'success')
+        Logs.Staff(src, logLine:format(tsivtools.Describe(target)), target)
     end)
 end
 
@@ -152,74 +150,74 @@ simpleTargetAction('player.revive', 'player.revive', 'revive', 'Revived %s', 'Re
 simpleTargetAction('player.heal',   'player.heal',   'heal',   'Healed %s',  'Healed %s')
 simpleTargetAction('player.slay',   'player.slay',   'slay',   'Slayed %s',  'Slayed %s')
 
-TSIV.RegisterAction('player.freeze', 'player.freeze', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.freeze', 'player.freeze', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
     local frozen = payload.state and true or false
     run(target, 'freeze', { state = frozen })
-    TSIV.Notify(target, frozen and 'You have been frozen by staff !' or 'You have been unfrozen :)', 'info')
-    TSIV.Notify(src, ('%s %s'):format(frozen and 'Froze' or 'Unfroze', TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('%s %s'):format(frozen and 'Froze' or 'Unfroze', TSIV.Describe(target)), target)
+    tsivtools.Notify(target, frozen and 'You have been frozen by staff !' or 'You have been unfrozen :)', 'info')
+    tsivtools.Notify(src, ('%s %s'):format(frozen and 'Froze' or 'Unfroze', tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('%s %s'):format(frozen and 'Froze' or 'Unfroze', tsivtools.Describe(target)), target)
 end)
 
-TSIV.RegisterAction('player.kick', 'player.kick', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.kick', 'player.kick', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
-    local reason = TSIV.SafeString(payload.reason, 200)
+    local reason = tsivtools.SafeString(payload.reason, 200)
     if reason == '' then reason = 'No reason given' end
 
-    local name = TSIV.GetName(target)
-    local identifier = TSIV.GetPrimaryIdentifier(target)
+    local name = tsivtools.GetName(target)
+    local identifier = tsivtools.GetPrimaryIdentifier(target)
 
-    Logs.Staff(src, ('Kicked %s - %s'):format(TSIV.Describe(target), reason), identifier)
+    Logs.Staff(src, ('Kicked %s - %s'):format(tsivtools.Describe(target), reason), identifier)
     DropPlayer(target, ('Kicked by staff !\n\nReason: %s'):format(reason))
 
-    TSIV.Notify(src, ('Kicked %s'):format(name), 'success')
-    TSIV.StaffBroadcast('mod', ('%s%s kicked %s (%s)'):format(Config.Prefix, TSIV.GetName(src), name, reason))
+    tsivtools.Notify(src, ('Kicked %s'):format(name), 'success')
+    tsivtools.StaffBroadcast('mod', ('%s%s kicked %s (%s)'):format(Config.Prefix, tsivtools.GetName(src), name, reason))
 end)
 
-TSIV.RegisterAction('player.warn', 'player.warn', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.warn', 'player.warn', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
-    local reason = TSIV.SafeString(payload.reason, 200)
+    local reason = tsivtools.SafeString(payload.reason, 200)
     if reason == '' then reason = 'No reason given' end
 
-    run(target, 'warn', { reason = reason, by = TSIV.GetName(src) })
-    TSIV.Notify(src, ('Warned %s'):format(TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('Warned %s - %s'):format(TSIV.Describe(target), reason), target)
+    run(target, 'warn', { reason = reason, by = tsivtools.GetName(src) })
+    tsivtools.Notify(src, ('Warned %s'):format(tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('Warned %s - %s'):format(tsivtools.Describe(target), reason), target)
 end)
 
-TSIV.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
-    local rank = TSIV.SafeString(payload.rank, 24):lower()
-    if rank ~= 'none' and not TSIV.RankExists(rank) then
-        TSIV.Notify(src, ('"%s" isnt staff !'):format(rank), 'error')
+    local rank = tsivtools.SafeString(payload.rank, 24):lower()
+    if rank ~= 'none' and not tsivtools.RankExists(rank) then
+        tsivtools.Notify(src, ('"%s" isnt staff !'):format(rank), 'error')
         return
     end
 
-    if rank ~= 'none' and src ~= 0 and TSIV.RankLevel(rank) > TSIV.RankLevel(TSIV.GetRank(src)) then
-        TSIV.Notify(src, ('%s is above your rank !'):format(TSIV.RankLabel(rank)), 'error')
+    if rank ~= 'none' and src ~= 0 and tsivtools.RankLevel(rank) > tsivtools.RankLevel(tsivtools.GetRank(src)) then
+        tsivtools.Notify(src, ('%s is above your rank !'):format(tsivtools.RankLabel(rank)), 'error')
         return
     end
 
-    local identifier = TSIV.GetPrimaryIdentifier(target)
+    local identifier = tsivtools.GetPrimaryIdentifier(target)
     local store = staffStore()
 
     if rank == 'none' then
@@ -227,22 +225,17 @@ TSIV.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
     else
         store[identifier] = rank
     end
-    TSIV.Storage.MarkDirty('staff')
-    TSIV.Storage.Flush('staff')
+    tsivtools.Storage.MarkDirty('staff')
+    tsivtools.Storage.Flush('staff')
 
-    TSIV.ClearRankCache(target)
-    TSIV.SendPermissions(target)
+    tsivtools.ClearRankCache(target)
+    tsivtools.SendPermissions(target)
 
-    TSIV.Notify(src, ('Set %s to %s'):format(TSIV.GetName(target), rank), 'success')
-    TSIV.Notify(target, ('Your new rank: %s'):format(rank), 'info')
+    tsivtools.Notify(src, ('Set %s to %s'):format(tsivtools.GetName(target), rank), 'success')
+    tsivtools.Notify(target, ('Your new rank: %s'):format(rank), 'info')
 
-    if rank ~= 'none' and src ~= 0 and TSIV.RankLevel(rank) == TSIV.RankLevel(TSIV.GetRank(src)) then
-        TSIV.Notify(src, 'They match your rank now, neither of you can change the other !', 'warn')
-    end
-
-    Logs.Staff(src, ('Set the rank of %s to %s'):format(TSIV.Describe(target), rank), identifier,
+    Logs.Staff(src, ('Set the rank of %s to %s'):format(tsivtools.Describe(target), rank), identifier,
         { rank = rank, identifier = identifier })
-
 end)
 
 local selfStates = {
@@ -251,51 +244,58 @@ local selfStates = {
     ['self.noclip']    = 'Noclip',
 }
 
-TSIV.RegisterAction('self.state', nil, function(src, payload)
+tsivtools.RegisterAction('self.state', nil, function(src, payload)
     local key = payload.key
     if not selfStates[key] then return end
-    if not TSIV.Can(src, key) then
-        TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
+    if not tsivtools.Can(src, key) then
+        tsivtools.Notify(src, 'You dont have permission to do that !!', 'error')
         return
     end
 
     Logs.Staff(src, ('%s %s'):format(selfStates[key], payload.state and 'on' or 'off'))
 end)
 
-TSIV.RegisterAction('self.teleport', nil, function(src, payload)
-    local permission = payload.saved and 'self.tpsaved' or 'self.tpcoords'
-    if not TSIV.Can(src, permission) then
-        TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
-        return
-    end
+tsivtools.RegisterAction('self.teleport', nil, function(src, payload)
+    local x, y, z
+    local saved = payload.saved ~= nil and Config.Teleports[tsivtools.ToInt(payload.saved, 1)]
 
-    local x = TSIV.ToNumber(payload.x)
-    local y = TSIV.ToNumber(payload.y)
-    local z = TSIV.ToNumber(payload.z)
-    if not x or not y or not z then
-        TSIV.Notify(src, 'Those arent valid coordinates !', 'error')
-        return
+    if payload.saved ~= nil then
+        if not saved then return end
+        if not tsivtools.Can(src, 'self.tpsaved') then
+            tsivtools.Notify(src, 'You dont have permission to do that !!', 'error')
+            return
+        end
+        x, y, z = saved.coords.x, saved.coords.y, saved.coords.z
+    else
+        if not tsivtools.Can(src, 'self.tpcoords') then
+            tsivtools.Notify(src, 'You dont have permission to do that !!', 'error')
+            return
+        end
+        x, y, z = tsivtools.ToNumber(payload.x), tsivtools.ToNumber(payload.y), tsivtools.ToNumber(payload.z)
+        if not x or not y or not z then
+            tsivtools.Notify(src, 'Those arent valid coordinates !', 'error')
+            return
+        end
     end
 
     run(src, 'teleport', { x = x, y = y, z = z })
     Logs.Staff(src, ('Teleported to %.1f, %.1f, %.1f'):format(x, y, z))
 end)
 
-TSIV.RegisterAction('vehicle.spawn', 'vehicle.spawn', function(src, payload)
-    local model = TSIV.SafeString(payload.model, 32):lower()
+tsivtools.RegisterAction('vehicle.spawn', 'vehicle.spawn', function(src, payload)
+    local model = tsivtools.SafeString(payload.model, 32):lower()
     if model == '' then
-        TSIV.Notify(src, 'You need a model name !!', 'error')
+        tsivtools.Notify(src, 'You need a model name !!', 'error')
         return
     end
 
-    if TSIV.AntiCheat and TSIV.AntiCheat.IsBlacklistedVehicle
-        and TSIV.AntiCheat.IsBlacklistedVehicle(model)
-        and TSIV.RankLevel(TSIV.GetRank(src)) < TSIV.RankLevel('superadmin') then
-        TSIV.Notify(src, ('%s is blacklisted !!'):format(model), 'error')
+    if tsivtools.AntiCheat.IsBlacklistedVehicle(model)
+        and tsivtools.RankLevel(tsivtools.GetRank(src)) < tsivtools.RankLevel('superadmin') then
+        tsivtools.Notify(src, ('%s is blacklisted !!'):format(model), 'error')
         return
     end
 
-    run(src, 'spawnVehicle', { model = model, plate = TSIV.SafeString(payload.plate, 8) })
+    run(src, 'spawnVehicle', { model = model, plate = tsivtools.SafeString(payload.plate, 8) })
     Logs.Staff(src, ('Spawned a %s'):format(model))
 end)
 
@@ -307,9 +307,9 @@ local vehicleSelfActions = {
 }
 
 for key, entry in pairs(vehicleSelfActions) do
-    TSIV.RegisterAction(key, key, function(src)
+    tsivtools.RegisterAction(key, key, function(src)
         run(src, entry.command, {})
-        TSIV.Notify(src, entry.message, 'success')
+        tsivtools.Notify(src, entry.message, 'success')
         Logs.Staff(src, entry.log)
     end)
 end
@@ -344,6 +344,13 @@ local function playerPedSet()
     return set
 end
 
+local function occupied(vehicle)
+    for seat = -1, 6 do
+        if GetPedInVehicleSeat(vehicle, seat) ~= 0 then return true end
+    end
+    return false
+end
+
 local function cleanup(kind, origin, radius, skipOccupied)
     local entry = cleanupKinds[kind]
     if not entry then return 0 end
@@ -355,13 +362,8 @@ local function cleanup(kind, origin, radius, skipOccupied)
         if DoesEntityExist(entity) then
             local keep = false
 
-            if kind == 'vehicles' and skipOccupied ~= false then
-                for seat = -1, 6 do
-                    if GetPedInVehicleSeat(entity, seat) ~= 0 then
-                        keep = true
-                        break
-                    end
-                end
+            if kind == 'vehicles' and skipOccupied then
+                keep = occupied(entity)
             elseif kind == 'peds' then
                 keep = playerPeds[entity] == true
             end
@@ -369,8 +371,7 @@ local function cleanup(kind, origin, radius, skipOccupied)
             if not keep then
                 local inRange = true
                 if origin and radius then
-                    local ok, coords = pcall(GetEntityCoords, entity)
-                    inRange = ok and coords and distance(origin, coords) <= radius
+                    inRange = distance(origin, GetEntityCoords(entity)) <= radius
                 end
 
                 if inRange then
@@ -384,25 +385,25 @@ local function cleanup(kind, origin, radius, skipOccupied)
     return removed
 end
 
-TSIV.Cleanup = cleanup
+tsivtools.Cleanup = cleanup
 
-TSIV.RegisterAction('cleanup.area', nil, function(src, payload)
+tsivtools.RegisterAction('cleanup.area', nil, function(src, payload)
     local kind = payload.kind
     local entry = cleanupKinds[kind]
     if not entry then return end
 
     local all = payload.all and true or false
     local permission = all and entry.permissionAll or entry.permissionArea
-    if not TSIV.Can(src, permission) then
-        TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
+    if not tsivtools.Can(src, permission) then
+        tsivtools.Notify(src, 'You dont have permission to do that !!', 'error')
         return
     end
 
     local origin, radius
     if not all then
-        radius = TSIV.ToNumber(payload.radius)
+        radius = tsivtools.ToNumber(payload.radius)
         if not radius or radius <= 0 or radius > 2000 then
-            TSIV.Notify(src, 'Invalid radius :)', 'error')
+            tsivtools.Notify(src, 'Invalid radius :)', 'error')
             return
         end
         origin = pedCoords(src)
@@ -412,54 +413,60 @@ TSIV.RegisterAction('cleanup.area', nil, function(src, payload)
     local removed = cleanup(kind, origin, radius, payload.includeOccupied ~= true)
 
     local where = all and 'across the whole map' or ('within %dm'):format(math.floor(radius))
-    TSIV.Notify(src, ('Deleted %d %s(s) %s'):format(removed, entry.label, where), 'success')
+    tsivtools.Notify(src, ('Deleted %d %s(s) %s'):format(removed, entry.label, where), 'success')
     Logs.Staff(src, ('Deleted %d %s(s) %s'):format(removed, entry.label, where), nil,
         { kind = kind, radius = radius, all = all, removed = removed })
 
     if all or removed > 50 then
-        TSIV.StaffBroadcast('admin', ('%s%s deleted %d %s(s) %s'):format(
-            Config.Prefix, TSIV.GetName(src), removed, entry.label, where))
+        tsivtools.StaffBroadcast('admin', ('%s%s deleted %d %s(s) %s'):format(
+            Config.Prefix, tsivtools.GetName(src), removed, entry.label, where))
     end
 end)
 
-TSIV.RegisterAction('cleanup.player', 'prop.deleteplayer', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('cleanup.player', 'prop.deleteplayer', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
-        TSIV.Notify(src, 'Player isnt online !', 'error')
+        tsivtools.Notify(src, 'Player isnt online !', 'error')
         return
     end
 
-    local removed = TSIV.AntiCheat.DeleteEntitiesOf(target, payload.kind)
-    TSIV.Notify(src, ('Deleted %d entity(s) created by %s'):format(removed, TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('Deleted %d entity(s) created by %s'):format(removed, TSIV.Describe(target)), target)
+    local removed = tsivtools.AntiCheat.DeleteEntitiesOf(target, payload.kind)
+    tsivtools.Notify(src, ('Deleted %d entity(s) created by %s'):format(removed, tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('Deleted %d entity(s) created by %s'):format(removed, tsivtools.Describe(target)), target)
 end)
 
-TSIV.RegisterAction('entity.deleteNearest', nil, function(src, payload)
+tsivtools.RegisterAction('entity.deleteNearest', nil, function(src, payload)
     local permission = payload.kind == 'vehicles' and 'vehicle.delete' or 'prop.deletenearest'
-    if not TSIV.Can(src, permission) then
-        TSIV.Notify(src, 'You dont have permission to do that.', 'error')
+    if not tsivtools.Can(src, permission) then
+        tsivtools.Notify(src, 'You dont have permission to do that.', 'error')
         return
     end
 
-    local netId = TSIV.ToInt(payload.netId, 1)
+    local netId = tsivtools.ToInt(payload.netId, 1)
     if not netId then return end
 
     local entity = NetworkGetEntityFromNetworkId(netId)
     if not entity or entity == 0 or not DoesEntityExist(entity) then
-        TSIV.Notify(src, 'Entity no longer exists !!', 'error')
+        tsivtools.Notify(src, 'Entity no longer exists !!', 'error')
+        return
+    end
+
+    local wanted = payload.kind == 'vehicles' and 2 or 3
+    if GetEntityType(entity) ~= wanted or playerPedSet()[entity] then
+        tsivtools.Notify(src, 'You can only delete props and vehicles with this !', 'error')
         return
     end
 
     local origin = pedCoords(src)
     local coords = GetEntityCoords(entity)
     if origin and distance(origin, coords) > 50.0 then
-        TSIV.Notify(src, 'Entity too far away !', 'error')
+        tsivtools.Notify(src, 'Entity too far away !', 'error')
         return
     end
 
     local model = GetEntityModel(entity)
     DeleteEntity(entity)
-    TSIV.Notify(src, 'Entity deleted !!!', 'success')
+    tsivtools.Notify(src, 'Entity deleted !!!', 'success')
     Logs.Staff(src, ('Deleted entity %s (model %s)'):format(netId, model))
 end)
 
@@ -474,64 +481,63 @@ local trafficKeys = {
 local function trafficState()
     local state = {}
     for key, configKey in pairs(trafficKeys) do
-        state[key] = TSIV.Setting('traffic_' .. key, Config.Traffic[configKey]) and true or false
+        state[key] = tsivtools.Setting('traffic' .. key, Config.Traffic[configKey]) and true or false
     end
     return state
 end
 
-TSIV.TrafficState = trafficState
+tsivtools.TrafficState = trafficState
 
-AddEventHandler(TSIV.Events.ready, function()
-    run(source, 'setTraffic', trafficState())
+local trafficSentAt = {}
+
+AddEventHandler(tsivtools.Events.ready, function()
+    local src = source
+    local now = GetGameTimer()
+    if trafficSentAt[src] and now - trafficSentAt[src] < 5000 then return end
+    trafficSentAt[src] = now
+    run(src, 'setTraffic', trafficState())
 end)
 
-TSIV.RegisterAction('world.traffic', 'world.traffic', function(src, payload)
+AddEventHandler('playerDropped', function()
+    trafficSentAt[source] = nil
+end)
+
+tsivtools.RegisterAction('world.traffic', 'world.traffic', function(src, payload)
     local key = payload.key
     if not trafficKeys[key] then return end
 
     local state = payload.state and true or false
-    TSIV.SetSetting('traffic_' .. key, state)
+    tsivtools.SetSetting('traffic' .. key, state)
 
     local current = trafficState()
-    TriggerClientEvent(TSIV.Events.run, -1, 'setTraffic', current)
+    TriggerClientEvent(tsivtools.Events.run, -1, 'setTraffic', current)
 
-    TSIV.Notify(src, ('%s are now %s !'):format(key, state and 'OFF' or 'ON'), 'success')
+    tsivtools.Notify(src, ('%s are now %s !'):format(key, state and 'OFF' or 'ON'), 'success')
     Logs.Staff(src, ('Turned %s %s'):format(key, state and 'off' or 'on'))
 
     for _, player in ipairs(GetPlayers()) do
-        TSIV.SendPermissions(tonumber(player))
+        tsivtools.SendPermissions(tonumber(player))
     end
 end)
 
 local function isAmbient(entity)
-    local ok, population = pcall(GetEntityPopulationType, entity)
-    if not ok or population == nil then return false end
+    local population = GetEntityPopulationType(entity)
     return population ~= 6 and population ~= 7
 end
 
 local function clearTraffic()
     local playerPeds = playerPedSet()
     local removed = 0
-    local ambient = isAmbient
 
     for _, vehicle in ipairs(GetAllVehicles()) do
-        if DoesEntityExist(vehicle) and ambient(vehicle) then
-            local occupied = false
-            for seat = -1, 6 do
-                if GetPedInVehicleSeat(vehicle, seat) ~= 0 then
-                    occupied = true
-                    break
-                end
-            end
-            if not occupied then
-                DeleteEntity(vehicle)
-                removed = removed + 1
-            end
+        if DoesEntityExist(vehicle) and isAmbient(vehicle) and not occupied(vehicle) then
+            DeleteEntity(vehicle)
+            removed = removed + 1
         end
     end
 
     for _, ped in ipairs(GetAllPeds()) do
-        if DoesEntityExist(ped) and not playerPeds[ped] and ambient(ped) then
+        if DoesEntityExist(ped) and not playerPeds[ped] and isAmbient(ped) then
             DeleteEntity(ped)
             removed = removed + 1
         end
@@ -540,44 +546,44 @@ local function clearTraffic()
     return removed
 end
 
-TSIV.RegisterAction('world.cleartraffic', 'world.cleartraffic', function(src)
+tsivtools.RegisterAction('world.cleartraffic', 'world.cleartraffic', function(src)
     local removed = clearTraffic()
-    TSIV.Notify(src, ('Cleared %d traffic entities !'):format(removed), 'success')
+    tsivtools.Notify(src, ('Cleared %d traffic entities !'):format(removed), 'success')
     Logs.Staff(src, ('Cleared %d traffic entities'):format(removed))
 end)
 
-TSIV.RegisterAction('prop.spawn', 'prop.spawn', function(src, payload)
-    local model = TSIV.SafeString(payload.model, 48):lower()
+tsivtools.RegisterAction('prop.spawn', 'prop.spawn', function(src, payload)
+    local model = tsivtools.SafeString(payload.model, 48):lower()
     if model == '' then
-        TSIV.Notify(src, 'You need a prop model name !', 'error')
+        tsivtools.Notify(src, 'You need a prop model name !', 'error')
         return
     end
 
-    if TSIV.AntiCheat and TSIV.AntiCheat.IsBlacklistedProp and TSIV.AntiCheat.IsBlacklistedProp(model) then
-        TSIV.Notify(src, ('%s is blacklisted !'):format(model), 'error')
+    if tsivtools.AntiCheat.IsBlacklistedProp(model) then
+        tsivtools.Notify(src, ('%s is blacklisted !'):format(model), 'error')
         return
     end
 
-    run(src, 'spawnProp', { model = model, distance = TSIV.ToNumber(payload.distance) or 2.5 })
+    run(src, 'spawnProp', { model = model, distance = tsivtools.ToNumber(payload.distance) or 2.5 })
     Logs.Staff(src, ('Spawned prop %s'):format(model))
 end)
 
-TSIV.RegisterAction('prop.toggleproplog', 'prop.toggleproplog', function(src, payload)
+tsivtools.RegisterAction('prop.toggleproplog', 'prop.toggleproplog', function(src, payload)
     local state = payload.state and true or false
-    TSIV.SetSetting('logPropSpawns', state)
+    tsivtools.SetSetting('logPropSpawns', state)
 
-    TSIV.Notify(src, ('Prop spawn logging is now %s'):format(state and 'ON' or 'OFF'), 'success')
+    tsivtools.Notify(src, ('Prop spawn logging is now %s'):format(state and 'ON' or 'OFF'), 'success')
     Logs.Staff(src, ('Turned prop spawn logging %s'):format(state and 'on' or 'off'))
-    TSIV.StaffBroadcast(Config.AntiCheat.propLogRank, ('%s%s turned prop spawn logging %s'):format(
-        TSIV.GetName(src), Config.Prefix, state and 'ON' or 'OFF'))
+    tsivtools.StaffBroadcast(Config.AntiCheat.propLogRank, ('%s%s turned prop spawn logging %s'):format(
+        Config.Prefix, tsivtools.GetName(src), state and 'ON' or 'OFF'))
 
     for _, player in ipairs(GetPlayers()) do
-        TSIV.SendPermissions(tonumber(player))
+        tsivtools.SendPermissions(tonumber(player))
     end
 end)
 
-TSIV.RegisterRequest('staff.online', 'staff.online', function(src)
-    local staff = TSIV.GetStaff()
+tsivtools.RegisterRequest('staff.online', 'staff.online', function(src)
+    local staff = tsivtools.GetStaff()
     local lines = {}
 
     if #staff == 0 then
@@ -596,7 +602,7 @@ TSIV.RegisterRequest('staff.online', 'staff.online', function(src)
             counts[member.rank] = (counts[member.rank] or 0) + 1
         end
         local summary = {}
-        for _, rank in ipairs(TSIV.Ranks()) do
+        for _, rank in ipairs(tsivtools.Ranks()) do
             if counts[rank.name] then
                 summary[#summary + 1] = ('%s: %d'):format(rank.label, counts[rank.name])
             end
@@ -607,36 +613,40 @@ TSIV.RegisterRequest('staff.online', 'staff.online', function(src)
     return { title = 'TsivTools // online staff', lines = lines, staff = staff }
 end)
 
-TSIV.RegisterAction('staff.chat', 'staff.chat', function(src, payload)
-    local message = TSIV.SafeString(payload.message, 200)
+local function staffChat(src, text)
+    local message = tsivtools.SafeString(text, 200)
     if message == '' then return end
 
-    local rank = TSIV.GetRank(src)
-    local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(TSIV.GetName(src), TSIV.RankLabel(rank), message)
+    local name = src == 0 and 'console' or tsivtools.GetName(src)
+    local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(name, tsivtools.RankLabel(tsivtools.GetRank(src)), message)
 
-    for _, member in ipairs(TSIV.GetStaff('mod')) do
-        TriggerClientEvent(TSIV.Events.chat, member.source, line)
+    for _, member in ipairs(tsivtools.GetStaff('mod')) do
+        TriggerClientEvent(tsivtools.Events.chat, member.source, line)
     end
 
-    print(('%s[staff chat] %s: %s'):format(Config.ConsolePrefix, TSIV.GetName(src), message))
+    print(('%s[staff chat] %s: %s'):format(Config.ConsolePrefix, name, message))
     Logs.Write({
         category = 'chat',
         message = ('[staff chat] %s'):format(message),
-        actor = TSIV.GetPrimaryIdentifier(src),
-        actorName = TSIV.GetName(src),
+        actor = src == 0 and 'console' or tsivtools.GetPrimaryIdentifier(src),
+        actorName = name,
     })
+end
+
+tsivtools.RegisterAction('staff.chat', 'staff.chat', function(src, payload)
+    staffChat(src, payload.message)
 end)
 
-TSIV.RegisterAction('staff.announce', 'staff.announce', function(src, payload)
-    local message = TSIV.SafeString(payload.message, 200)
+tsivtools.RegisterAction('staff.announce', 'staff.announce', function(src, payload)
+    local message = tsivtools.SafeString(payload.message, 200)
     if message == '' then return end
 
-    TriggerClientEvent(TSIV.Events.chat, -1, ('^1[ANNOUNCEMENT]^7 %s'):format(message))
-    TSIV.Notify(src, 'Announcement sent !!', 'success')
+    TriggerClientEvent(tsivtools.Events.chat, -1, ('^1[ANNOUNCEMENT]^7 %s'):format(message))
+    tsivtools.Notify(src, 'Announcement sent !!', 'success')
     Logs.Staff(src, ('Announced: %s'):format(message))
 end)
 
-TSIV.RegisterRequest('staff.serverinfo', 'staff.serverinfo', function(src)
+tsivtools.RegisterRequest('staff.serverinfo', 'staff.serverinfo', function(src)
     local objects = GetAllObjects()
     local vehicles = GetAllVehicles()
     local peds = GetAllPeds()
@@ -646,13 +656,13 @@ TSIV.RegisterRequest('staff.serverinfo', 'staff.serverinfo', function(src)
 
     local lines = {
         ('players       : %d'):format(#players),
-        ('staff online  : %d'):format(#TSIV.GetStaff()),
+        ('staff online  : %d'):format(#tsivtools.GetStaff()),
         ('objects       : %d'):format(#objects),
         ('vehicles      : %d'):format(#vehicles),
         ('peds          : %d'):format(#peds),
         ('resources     : %d'):format(GetNumResources()),
-        ('storage       : %s'):format(TSIV.Storage.UsingMysql() and 'mysql' or 'file'),
-        ('prop logging  : %s'):format(TSIV.PropLoggingEnabled() and 'on' or 'off'),
+        ('storage       : %s'):format(tsivtools.Storage.UsingMysql() and 'mysql' or 'file'),
+        ('prop logging  : %s'):format(tsivtools.PropLoggingEnabled() and 'on' or 'off'),
         ('uptime        : %d minute(s)'):format(uptime),
     }
 
@@ -661,118 +671,111 @@ end)
 
 local function commandPermission(src, key)
     if src == 0 then return true end
-    if TSIV.Can(src, key) then return true end
-    TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
+    if tsivtools.Can(src, key) then return true end
+    tsivtools.Notify(src, 'You dont have permission to do that !!', 'error')
     return false
 end
 
 RegisterCommand('bring', function(src, args)
     if not commandPermission(src, 'player.bring') then return end
-    local target = TSIV.ResolveTarget(args[1])
+    local target = tsivtools.ResolveTarget(args[1])
     if not target then
-        TSIV.Notify(src, '/bring <id>', 'error')
+        tsivtools.Notify(src, '/bring <id>', 'error')
         return
     end
 
     local coords = pedCoords(src)
     if coords then
         run(target, 'teleport', { x = coords.x, y = coords.y + 1.0, z = coords.z })
-        TSIV.Notify(target, ('%s brought you'):format(TSIV.GetName(src)), 'info')
-        TSIV.Notify(src, ('Brought %s to you'):format(TSIV.GetName(target)), 'success')
-        Logs.Staff(src, ('Brought %s'):format(TSIV.Describe(target)), target)
+        tsivtools.Notify(target, ('%s brought you'):format(tsivtools.GetName(src)), 'info')
+        tsivtools.Notify(src, ('Brought %s to you'):format(tsivtools.GetName(target)), 'success')
+        Logs.Staff(src, ('Brought %s'):format(tsivtools.Describe(target)), target)
     end
 end, false)
 
 RegisterCommand('goto', function(src, args)
     if not commandPermission(src, 'player.goto') then return end
-    local target = TSIV.ResolveTarget(args[1])
+    local target = tsivtools.ResolveTarget(args[1])
     if not target then
-        TSIV.Notify(src, '/goto <id>', 'error')
+        tsivtools.Notify(src, '/goto <id>', 'error')
         return
     end
     local coords = pedCoords(target)
     if coords then
         run(src, 'teleport', { x = coords.x, y = coords.y + 1.0, z = coords.z })
-        Logs.Staff(src, ('Teleported to %s'):format(TSIV.Describe(target)), target)
+        Logs.Staff(src, ('Teleported to %s'):format(tsivtools.Describe(target)), target)
     end
 end, false)
 
 RegisterCommand('revive', function(src, args)
     if not commandPermission(src, 'player.revive') then return end
-    local target = TSIV.ResolveTarget(args[1]) or src
+    local target = tsivtools.ResolveTarget(args[1]) or (src ~= 0 and src or nil)
+    if not target then
+        tsivtools.Notify(src, 'usage: /revive <server id>', 'error')
+        return
+    end
     run(target, 'revive', {})
-    TSIV.Notify(src, ('Revived %s'):format(TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('Revived %s'):format(TSIV.Describe(target)), target)
+    tsivtools.Notify(src, ('Revived %s'):format(tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('Revived %s'):format(tsivtools.Describe(target)), target)
 end, false)
 
 RegisterCommand('slay', function(src, args)
     if not commandPermission(src, 'player.slay') then return end
-    local target = TSIV.ResolveTarget(args[1])
+    local target = tsivtools.ResolveTarget(args[1])
     if not target then
-        TSIV.Notify(src, 'usage: /slay <server id>', 'error')
+        tsivtools.Notify(src, 'usage: /slay <server id>', 'error')
         return
     end
     run(target, 'slay', {})
-    TSIV.Notify(src, ('Slayed %s'):format(TSIV.GetName(target)), 'success')
-    Logs.Staff(src, ('Slayed %s'):format(TSIV.Describe(target)), target)
+    tsivtools.Notify(src, ('Slayed %s'):format(tsivtools.GetName(target)), 'success')
+    Logs.Staff(src, ('Slayed %s'):format(tsivtools.Describe(target)), target)
 end, false)
 
 RegisterCommand('prop', function(src, args)
-    if not commandPermission(src, 'prop.spawn') then return end
-    local model = TSIV.SafeString(args[1], 48):lower()
+    if src == 0 or not commandPermission(src, 'prop.spawn') then return end
+    local model = tsivtools.SafeString(args[1], 48):lower()
     if model == '' then
-        TSIV.Notify(src, 'usage: /prop <model name>', 'error')
+        tsivtools.Notify(src, 'usage: /prop <model name>', 'error')
         return
     end
-    if TSIV.AntiCheat and TSIV.AntiCheat.IsBlacklistedProp and TSIV.AntiCheat.IsBlacklistedProp(model) then
-        TSIV.Notify(src, ('%s is blacklisted !'):format(model), 'error')
+    if tsivtools.AntiCheat.IsBlacklistedProp(model) then
+        tsivtools.Notify(src, ('%s is blacklisted !'):format(model), 'error')
         return
     end
-    run(src, 'spawnProp', { model = model, distance = TSIV.ToNumber(args[2]) or 2.5 })
+    run(src, 'spawnProp', { model = model, distance = tsivtools.ToNumber(args[2]) or 2.5 })
     Logs.Staff(src, ('Spawned prop %s'):format(model))
 end, false)
 
 RegisterCommand('cleartraffic', function(src)
     if not commandPermission(src, 'world.cleartraffic') then return end
     local removed = clearTraffic()
-    TSIV.Notify(src, ('Cleared %d traffic entities !'):format(removed), 'success')
+    tsivtools.Notify(src, ('Cleared %d traffic entities !'):format(removed), 'success')
     Logs.Staff(src, ('Cleared %d traffic entities'):format(removed))
 end, false)
 
 RegisterCommand('dv', function(src, args)
     if not commandPermission(src, 'vehicle.dvarea') then return end
-    local radius = TSIV.ToNumber(args[1]) or 10.0
+    local radius = tsivtools.ToNumber(args[1]) or 10.0
     radius = math.min(math.max(radius, 1.0), 2000.0)
     local origin = pedCoords(src)
     if not origin then return end
     local removed = cleanup('vehicles', origin, radius, true)
-    TSIV.Notify(src, ('Deleted %d vehicle(s) within %dm'):format(removed, math.floor(radius)), 'success')
+    tsivtools.Notify(src, ('Deleted %d vehicle(s) within %dm'):format(removed, math.floor(radius)), 'success')
     Logs.Staff(src, ('Deleted %d vehicle(s) within %dm'):format(removed, math.floor(radius)))
 end, false)
 
 RegisterCommand('dp', function(src, args)
     if not commandPermission(src, 'prop.deletearea') then return end
-    local radius = TSIV.ToNumber(args[1]) or 10.0
+    local radius = tsivtools.ToNumber(args[1]) or 10.0
     radius = math.min(math.max(radius, 1.0), 2000.0)
     local origin = pedCoords(src)
     if not origin then return end
     local removed = cleanup('props', origin, radius)
-    TSIV.Notify(src, ('Deleted %d prop(s) within %dm'):format(removed, math.floor(radius)), 'success')
+    tsivtools.Notify(src, ('Deleted %d prop(s) within %dm'):format(removed, math.floor(radius)), 'success')
     Logs.Staff(src, ('Deleted %d prop(s) within %dm'):format(removed, math.floor(radius)))
 end, false)
 
 RegisterCommand('staffchat', function(src, args)
     if not commandPermission(src, 'staff.chat') then return end
-    local message = table.concat(args, ' ')
-    if message == '' then return end
-    TriggerEvent('__tsivtools_staffchat', src, message)
+    staffChat(src, table.concat(args, ' '))
 end, false)
-
-AddEventHandler('__tsivtools_staffchat', function(src, message)
-    message = TSIV.SafeString(message, 200)
-    local rank = TSIV.GetRank(src)
-    local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(TSIV.GetName(src), TSIV.RankLabel(rank), message)
-    for _, member in ipairs(TSIV.GetStaff('mod')) do
-        TriggerClientEvent(TSIV.Events.chat, member.source, line)
-    end
-end)

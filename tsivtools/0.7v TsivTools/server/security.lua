@@ -1,8 +1,8 @@
-TSIV.Security = {}
-local Security = TSIV.Security
-local Logs = TSIV.Logs
+tsivtools.Security = {}
+local Security = tsivtools.Security
+local Logs = tsivtools.Logs
 
-local history = TSIV.Storage.Get('player_history')
+local history = tsivtools.Storage.Get('player_history')
 local sessions = {}
 local monitors = {}
 
@@ -17,52 +17,94 @@ local function now()
 end
 
 local function remember(src)
-    local identifier = TSIV.GetPrimaryIdentifier(src)
-    local ids = TSIV.GetIdentifiers(src)
+    local identifier = tsivtools.GetPrimaryIdentifier(src)
     local entry = history[identifier] or {
-        identifier = identifier, names = {}, identifiers = {}, joins = {},
+        identifier = identifier, names = {}, joins = {},
         firstSeen = now(),
     }
     entry.lastSeen = now()
-    entry.currentName = TSIV.GetName(src)
+    entry.currentName = tsivtools.GetName(src)
     entry.currentId = src
-    entry.identifiers = ids
-    entry.names[#entry.names + 1] = entry.currentName
+    local known = false
+    for _, name in ipairs(entry.names) do
+        if name == entry.currentName then known = true break end
+    end
+    if not known then entry.names[#entry.names + 1] = entry.currentName end
     if #entry.names > 20 then table.remove(entry.names, 1) end
     entry.joins[#entry.joins + 1] = entry.lastSeen
     if #entry.joins > 30 then table.remove(entry.joins, 1) end
     history[identifier] = entry
-    TSIV.Storage.MarkDirty('player_history')
+    tsivtools.Storage.MarkDirty('player_history')
 end
 
-local function onlineByIdentifier(identifier)
-    for _, raw in ipairs(GetPlayers()) do
-        local src = tonumber(raw)
-        if TSIV.GetPrimaryIdentifier(src) == identifier then return src end
+local function forgetOldPlayers()
+    local cutoff = now() - Config.security.historyDays * 86400
+    local changed = false
+    for identifier, entry in pairs(history) do
+        if entry.identifiers then
+            entry.identifiers = nil
+            changed = true
+        end
+        if (entry.lastSeen or 0) < cutoff then
+            history[identifier] = nil
+            changed = true
+        end
     end
+    if changed then tsivtools.Storage.MarkDirty('player_history') end
 end
+
+CreateThread(function()
+    while true do
+        forgetOldPlayers()
+        Wait(3600000)
+    end
+end)
 
 local function activeIdentifiers()
     local out = {}
     for _, raw in ipairs(GetPlayers()) do
         local src = tonumber(raw)
-        out[TSIV.GetPrimaryIdentifier(src)] = true
+        out[tsivtools.GetPrimaryIdentifier(src)] = src
     end
     return out
 end
 
 local function logEntries(limit)
-    return TSIV.Logs.Search('', math.min(limit or 100, 100), 'all')
+    return tsivtools.Logs.Search('', math.min(limit or 100, 100), 'all')
+end
+
+local kindWords = {
+    { 'injection',       { 'stopped answering', 'not answering' } },
+    { 'aim',             { 'aim', 'snap', 'crosshair' } },
+    { 'vehicle abuse',   { 'vehicle' } },
+    { 'entity abuse',    { 'prop', 'ped spawn' } },
+    { 'explosion abuse', { 'explosion' } },
+}
+
+local function kindOf(text)
+    text = text:lower()
+    for _, entry in ipairs(kindWords) do
+        for _, word in ipairs(entry[2]) do
+            if text:find(word, 1, true) then return entry[1] end
+        end
+    end
+    return 'event abuse'
+end
+
+local function reasonOf(entry)
+    local data = entry.data
+    if type(data) == 'string' then
+        local ok, decoded = pcall(json.decode, data)
+        data = ok and decoded or nil
+    end
+    return type(data) == 'table' and type(data.reason) == 'string' and data.reason or nil
 end
 
 local function detection(entry)
     if entry.category ~= 'anticheat' and entry.category ~= 'props' then return nil end
     local severity = severityByCategory[entry.category] or 'medium'
     local message = entry.message or ''
-    local kind = 'event abuse'
-    if message:lower():find('vehicle') then kind = 'vehicle abuse'
-    elseif message:lower():find('prop') then kind = 'entity abuse'
-    elseif message:lower():find('explosion') then kind = 'explosion abuse' end
+    local kind = kindOf(reasonOf(entry) or message)
     return {
         id = entry.id, at = entry.at, source = entry.target,
         name = entry.targetName ~= '' and entry.targetName or 'Unknown player',
@@ -93,19 +135,19 @@ local function riskFor(identifier, detections)
 end
 
 local function profile(src, target)
-    local identifier = TSIV.GetPrimaryIdentifier(target)
+    local identifier = tsivtools.GetPrimaryIdentifier(target)
     local entry = history[identifier] or {}
     local detections = allDetections()
     local risk, count = riskFor(identifier, detections)
     local lines = {
-        ('player: %s (id %s)'):format(TSIV.GetName(target), target),
+        ('player: %s (id %s)'):format(tsivtools.GetName(target), target),
         ('risk score: %d/100'):format(risk),
         ('session duration: %s'):format(os.date('!%Hh %Mm', now() - (sessions[target] or now()))),
         ('first seen: %s'):format(entry.firstSeen and os.date('%Y-%m-%d %H:%M:%S', entry.firstSeen) or 'this session'),
         ('last seen: %s'):format(entry.lastSeen and os.date('%Y-%m-%d %H:%M:%S', entry.lastSeen) or 'now'),
         ('detections: %d'):format(count),
         ('previous names: %s'):format(table.concat(entry.names or {}, ', ')),
-        ('identifiers: %s'):format(json.encode(entry.identifiers or TSIV.GetIdentifiers(target))),
+        ('identifiers: %s'):format(json.encode(tsivtools.GetIdentifiers(target))),
     }
     for _, item in ipairs(detections) do
         if item.source == identifier then
@@ -123,7 +165,7 @@ local function profile(src, target)
     return { title = 'Player Security Profile', lines = lines }
 end
 
-TSIV.RegisterRequest('security.status', 'security.view', function()
+tsivtools.RegisterRequest('security.status', 'security.view', function()
     local detections = allDetections()
     local online = activeIdentifiers()
     local active = {}
@@ -137,7 +179,7 @@ TSIV.RegisterRequest('security.status', 'security.view', function()
         ('temporary monitors: %d'):format((function()
             local count = 0
             for target, expires in pairs(monitors) do
-                if expires > now() and online[TSIV.GetPrimaryIdentifier(target)] then count = count + 1 end
+                if expires > now() and online[tsivtools.GetPrimaryIdentifier(target)] then count = count + 1 end
             end
             return count
         end)()),
@@ -153,7 +195,7 @@ TSIV.RegisterRequest('security.status', 'security.view', function()
     return { title = 'Security Center', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.health', 'security.view', function()
+tsivtools.RegisterRequest('security.health', 'security.view', function()
     local lines = {
         ('TsivTools anticheat: %s'):format(Config.anticheat.enabled and 'enabled' or 'disabled'),
         ('online players: %d'):format(#GetPlayers()),
@@ -162,7 +204,7 @@ TSIV.RegisterRequest('security.health', 'security.view', function()
     return { title = 'Security Health Dashboard', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.detections', 'security.view', function(_, payload)
+tsivtools.RegisterRequest('security.detections', 'security.view', function(_, payload)
     local severity = payload.severity and payload.severity:lower()
     local kind = payload.kind and payload.kind:lower()
     local lines = {}
@@ -177,31 +219,29 @@ TSIV.RegisterRequest('security.detections', 'security.view', function(_, payload
     return { title = 'Unified Detection Feed', lines = lines }
 end)
 
-TSIV.RegisterRequest('security.alerts', 'security.view', function()
+tsivtools.RegisterRequest('security.alerts', 'security.view', function()
     local online = activeIdentifiers()
     local detections = allDetections()
     local out = {}
     for _, item in ipairs(detections) do
-        if online[item.source] then
-            local target = onlineByIdentifier(item.source)
-            if target then
-                item.target = target
-                item.risk = riskFor(item.source, detections)
-                out[#out + 1] = item
-            end
+        local target = online[item.source]
+        if target then
+            item.target = target
+            item.risk = riskFor(item.source, detections)
+            out[#out + 1] = item
         end
     end
     return out
 end)
 
-TSIV.RegisterRequest('security.profile', 'security.view', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterRequest('security.profile', 'security.view', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then return { title = 'Player Security Profile', lines = { 'Player is not online.' } } end
-    Logs.Staff(src, ('Opened security profile for %s'):format(TSIV.Describe(target)), target)
+    Logs.Staff(src, ('Opened security profile for %s'):format(tsivtools.Describe(target)), target)
     return profile(src, target)
 end)
 
-TSIV.RegisterRequest('security.statistics', 'security.view', function()
+tsivtools.RegisterRequest('security.statistics', 'security.view', function()
     local detections = allDetections()
     local counts = {}
     for _, item in ipairs(detections) do counts[item.kind] = (counts[item.kind] or 0) + 1 end
@@ -213,13 +253,13 @@ end)
 
 RegisterNetEvent('tsivtools:security:monitor', function(target, minutes)
     local src = source
-    if not TSIV.Can(src, 'security.monitor') then return end
-    target = TSIV.ResolveTarget(target)
-    minutes = TSIV.ToInt(minutes, 1, Config.security.maxMonitorMinutes)
-    if not target or not minutes then TSIV.Notify(src, 'Invalid player or monitor duration.', 'error'); return end
-    Logs.Staff(src, ('Started a %d minute security monitor for %s'):format(minutes, TSIV.Describe(target)), target)
+    if not tsivtools.Can(src, 'security.monitor') then return end
+    target = tsivtools.ResolveTarget(target)
+    minutes = tsivtools.ToInt(minutes, 1, Config.security.maxMonitorMinutes)
+    if not target or not minutes then tsivtools.Notify(src, 'Invalid player or monitor duration.', 'error'); return end
+    Logs.Staff(src, ('Started a %d minute security monitor for %s'):format(minutes, tsivtools.Describe(target)), target)
     monitors[target] = now() + minutes * 60
-    TSIV.Notify(src, ('Monitoring %s for %d minute(s).'):format(TSIV.GetName(target), minutes), 'success')
+    tsivtools.Notify(src, ('Monitoring %s for %d minute(s).'):format(tsivtools.GetName(target), minutes), 'success')
 end)
 
 AddEventHandler('playerJoining', function()
@@ -230,11 +270,11 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    local identifier = TSIV.GetPrimaryIdentifier(src)
+    local identifier = tsivtools.GetPrimaryIdentifier(src)
     if history[identifier] then history[identifier].currentId = nil end
     monitors[src] = nil
     sessions[src] = nil
-    TSIV.Storage.MarkDirty('player_history')
+    tsivtools.Storage.MarkDirty('player_history')
 end)
 
 CreateThread(function()

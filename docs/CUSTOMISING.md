@@ -568,21 +568,36 @@ decision you should make deliberately.
 Discord mirroring:
 
 ```lua
-Config.Logging.discord = {
+Config.logging.discord = {
     enabled = true,
     username = 'tsivtools',
     webhooks = {
-        anticheat = 'https://discord.com/api/webhooks/...',
-        ban       = 'https://discord.com/api/webhooks/...',
-        staff     = '',   -- empty means this category is not mirrored
+        anticheat = '',
+        ban       = '',
+        staff     = '',
     },
 }
 ```
 
+Put the URLs in `server.cfg`, not in `config.lua`. `config.lua` is a shared
+script, so every player downloads it and anyone with a Lua executor can read
+it. One convar per category:
+
+```
+set tsivtoolswebhookanticheat "https://discord.com/api/webhooks/..."
+set tsivtoolswebhookban "https://discord.com/api/webhooks/..."
+```
+
+Use `set`, never `setr` or `sets`, those send the value to players too. A
+category with no convar and an empty entry in `webhooks` is not mirrored. A URL
+left in `config.lua` still works, but the server prints a warning every start.
+The ban clip webhook works the same way, through `tsivtoolsclipwebhook`.
+
 Get a URL from Discord: channel settings → Integrations → Webhooks → New
 webhook → Copy Webhook URL.
 
-Messages are queued and sent about one per second, because Discord rate limits
+Messages are queued and sent about one post per second, with up to ten
+messages for the same webhook in each post, because Discord rate limits
 webhooks and a burst of detections would otherwise be dropped.
 
 Treat a webhook URL like a password. Anybody who has it can post into that

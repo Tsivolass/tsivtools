@@ -1,4 +1,4 @@
-local rules = Config.anticheat.aimbot or { enabled = false }
+local rules = Config.anticheat.aimbot
 
 local buffer = {}
 local head = 0
@@ -10,8 +10,8 @@ local lastShot = false
 
 local function active()
     if not Config.anticheat.enabled then return false end
-    if not TSIV.Module('aimbot') then return false end
-    return rules.enabled ~= false
+    if not tsivtools.Module('aimbot') then return false end
+    return rules.enabled
 end
 
 local function push(t, yaw, pitch)
@@ -42,20 +42,18 @@ local function ordered(windowMs, now)
 end
 
 local function usingPad()
-    local ok, keyboard = pcall(GetLastInputMethod, 2)
-    if not ok or keyboard == nil then return false end
-    return keyboard == false
+    return not GetLastInputMethod(2)
 end
 
 local function report()
     local now = GetGameTimer()
-    if now - lastReport < (rules.reportCooldownMs or 250) then return end
+    if now - lastReport < rules.reportCooldownMs then return end
     lastReport = now
 
-    local samples, count = ordered(rules.windowMs or 600, now)
-    if count < (rules.minSamples or 6) then return end
+    local samples, count = ordered(rules.windowMs, now)
+    if count < rules.minSamples then return end
 
-    local allowed = math.floor((rules.maxPacked or 900) / 3)
+    local allowed = math.floor(rules.maxPacked / 3)
     local from = 1
     if count > allowed then from = count - allowed + 1 end
 
@@ -67,7 +65,7 @@ local function report()
         packed[#packed + 1] = math.floor(sample.pitch * 10.0 + 0.5)
     end
 
-    TriggerServerEvent(TSIV.Events.aim, packed, usingPad())
+    TriggerServerEvent(tsivtools.Events.aim, packed, usingPad())
 end
 
 CreateThread(function()

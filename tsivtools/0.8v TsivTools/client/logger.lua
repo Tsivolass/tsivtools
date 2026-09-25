@@ -1,9 +1,9 @@
-function TSIV.Print(message)
+function tsivtools.Print(message)
     print(Config.consoleprefix .. tostring(message))
 end
 
-function TSIV.PrintBlock(title, lines)
-
+function tsivtools.PrintBlock(title, lines)
+    local rule = ('='):rep(72)
     print('TsivTools :))')
     print(rule)
     print(Config.consoleprefix .. tostring(title))
@@ -15,7 +15,7 @@ function TSIV.PrintBlock(title, lines)
     print('')
 end
 
-function TSIV.Notify(message, kind)
+function tsivtools.Notify(message, kind)
     kind = kind or 'info'
 
     local prefix = '~s~'
@@ -39,7 +39,7 @@ local function stripColours(text)
     return (tostring(text):gsub('%^%d', ''))
 end
 
-function TSIV.Chat(message)
+function tsivtools.Chat(message)
     if chatAvailable() then
         TriggerEvent('chat:addMessage', { args = { message }, multiline = true })
         return
@@ -48,7 +48,7 @@ function TSIV.Chat(message)
     local plain = stripColours(message)
     feed[#feed + 1] = { text = plain, expires = GetGameTimer() + 15000 }
     while #feed > 8 do table.remove(feed, 1) end
-    TSIV.Print(plain)
+    tsivtools.Print(plain)
 end
 
 CreateThread(function()
@@ -86,33 +86,40 @@ CreateThread(function()
     end
 end)
 
-RegisterNetEvent(TSIV.Events.chat, function(message)
-    TSIV.Chat(message)
+RegisterNetEvent(tsivtools.Events.chat, function(message)
+    tsivtools.Chat(message)
 end)
 
-RegisterNetEvent(TSIV.Events.console, function(payload, kind)
+RegisterNetEvent(tsivtools.Events.console, function(payload, kind)
     if type(payload) == 'table' then
-        TSIV.PrintBlock(payload.title or 'tsivtools', payload.lines)
+        tsivtools.PrintBlock(payload.title or 'tsivtools', payload.lines)
     else
-        TSIV.Print(payload)
+        tsivtools.Print(payload)
     end
 
     if kind == 'warn' then
-        TSIV.Notify('Printed in console :)', 'warn')
+        tsivtools.Notify('Printed in console :)', 'warn')
     end
 end)
 
-RegisterNetEvent(TSIV.Events.notify, function(message, kind)
-    TSIV.Notify(message, kind)
+RegisterNetEvent(tsivtools.Events.notify, function(message, kind)
+    tsivtools.Notify(message, kind)
 end)
 
-RegisterNetEvent(TSIV.Events.alert, function(message)
-    if message then TSIV.Print(stripColours(message)) end
-    TSIV.Notify('anticheat alert !! check console :)', 'warn')
+local prefix = '^' .. stripColours(Config.prefix):gsub('(%W)', '%%%1')
+
+RegisterNetEvent(tsivtools.Events.alert, function(message)
+    if message then
+        local plain = stripColours(message)
+        tsivtools.Print(plain)
+        tsivtools.Notify(plain:gsub(prefix, ''), 'info')
+        return
+    end
+    tsivtools.Notify('anticheat alert !! check console :)', 'warn')
     PlaySoundFrontend(-1, 'Event_Start_Text', 'GTAO_FM_Events_Soundset', true)
 end)
 
-RegisterNetEvent(TSIV.Events.watchlist, function(name, id)
+RegisterNetEvent(tsivtools.Events.watchlist, function(name, id)
     topAlerts[#topAlerts + 1] = {
         text = ('WATCHLIST: %s joined (ID %d)'):format(name, id),
         expires = GetGameTimer() + 15000,

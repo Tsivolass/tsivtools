@@ -1,12 +1,12 @@
 local settings = Config.anticheat.client
 local blacklistedWeapons = {}
 
-for _, weapon in ipairs(settings.blacklistedWeapons or {}) do
+for _, weapon in ipairs(settings.blacklistedWeapons) do
     blacklistedWeapons[#blacklistedWeapons + 1] = { name = weapon, hash = GetHashKey(weapon) }
 end
 
 local function report(kind, detail)
-    TriggerServerEvent(TSIV.Events.report, kind, detail)
+    TriggerServerEvent(tsivtools.Events.report, kind, detail)
 end
 
 local lastCoords = nil
@@ -61,15 +61,19 @@ end
 
 CreateThread(function()
     if not Config.anticheat.enabled or not settings.enabled then return end
-    if not TSIV.Module('clientChecks') then return end
+    if not tsivtools.Module('clientChecks') then return end
 
     Wait(30000)
 
     while true do
-        Wait((settings.interval or 5) * 1000)
+        Wait(settings.interval * 1000)
 
         local ped = PlayerPedId()
-        if DoesEntityExist(ped) and not IsEntityDead(ped) then
+        local state = tsivtools.State
+        if state.noclip or state.spectating then
+            lastCoords = nil
+            lastCheck = 0
+        elseif DoesEntityExist(ped) and not IsEntityDead(ped) then
             if settings.speedCheck then speedCheck(ped) end
             if settings.healthCheck then healthCheck(ped) end
             if settings.weaponCheck then weaponCheck(ped) end
@@ -89,7 +93,7 @@ local beatToken = nil
 local beatDue = 0
 local beatInterval = 15
 
-RegisterNetEvent(TSIV.Events.heartbeat, function(interval, token)
+RegisterNetEvent(tsivtools.Events.heartbeat, function(interval, token)
     beatInterval = tonumber(interval) or beatInterval
     beatToken = token
     beatDue = GetGameTimer() + beatInterval * 1000
@@ -101,7 +105,7 @@ CreateThread(function()
         if beatToken and GetGameTimer() >= beatDue then
             local token = beatToken
             beatToken = nil
-            TriggerServerEvent(TSIV.Events.beat, token)
+            TriggerServerEvent(tsivtools.Events.beat, token)
         end
     end
 end)

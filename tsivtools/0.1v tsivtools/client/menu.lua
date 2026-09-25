@@ -1,26 +1,6 @@
---[[
-    tsivtools - menu
+tsivtools.Menu = {}
 
-    A small menu drawn with native draw calls. It is written here rather than
-    pulled in from a UI library so the resource has no dependencies at all and
-    so the look is controlled from config.lua.
-
-    Usage:
-
-        local menu = TSIV.Menu.Create('title', 'subtitle')
-        menu:Button('Label', 'Description', function() ... end)
-        menu:Checkbox('Label', 'Description', true, function(state) ... end)
-        menu:List('Label', 'Description', { 'a', 'b' }, function(value, index) ... end)
-        local sub = menu:Submenu('More', 'A submenu')
-        TSIV.Menu.Open(menu)
-
-    Controls: arrow keys move and change list values, Enter selects,
-    Backspace goes back one level and closes at the top.
-]]
-
-TSIV.Menu = {}
-
-local Menu = TSIV.Menu
+local Menu = tsivtools.Menu
 local Item = {}
 Item.__index = Item
 
@@ -29,10 +9,6 @@ local stack = {}
 local index = 1
 local offset = 0
 local lastInput = 0
-
--- ---------------------------------------------------------------------------
--- Layout
--- ---------------------------------------------------------------------------
 
 local layout = {
     width = 0.230,
@@ -60,10 +36,6 @@ local function colour()
     return c[1], c[2], c[3]
 end
 
--- ---------------------------------------------------------------------------
--- Drawing
--- ---------------------------------------------------------------------------
-
 local function drawText(text, x, y, scale, r, g, b, a, align)
     SetTextFont(layout.font)
     SetTextScale(scale, scale)
@@ -79,8 +51,6 @@ local function drawText(text, x, y, scale, r, g, b, a, align)
     DrawText(x, y)
 end
 
---- Rough pixel-free line count for the description box, so a long description
---- does not spill out of its background.
 local function descriptionLines(text)
     local perLine = 42
     return math.max(1, math.ceil(#text / perLine))
@@ -89,10 +59,6 @@ end
 local function drawRect(x, y, w, h, r, g, b, a)
     DrawRect(x + w / 2, y + h / 2, w, h, r, g, b, a)
 end
-
--- ---------------------------------------------------------------------------
--- Items
--- ---------------------------------------------------------------------------
 
 local function newItem(kind, label, description)
     return setmetatable({
@@ -111,7 +77,6 @@ function Item:SetDescription(description)
     self.description = description
 end
 
---- The text drawn on the right hand side of a row.
 function Item:rightText()
     if self.kind == 'list' then
         local value = self.values[self.selected]
@@ -123,10 +88,6 @@ function Item:rightText()
     end
     return self.right or ''
 end
-
--- ---------------------------------------------------------------------------
--- Menus
--- ---------------------------------------------------------------------------
 
 local MenuObject = {}
 MenuObject.__index = MenuObject
@@ -159,7 +120,6 @@ function MenuObject:Checkbox(label, description, checked, onToggle)
     return item
 end
 
---- values may be plain strings/numbers, or { label = 'x', value = 1 } tables.
 function MenuObject:List(label, description, values, onSelect, onChange)
     local item = newItem('list', label, description)
     item.values = values
@@ -181,8 +141,6 @@ function MenuObject:Submenu(label, description, subtitle)
     return sub, item
 end
 
---- Attach a menu that was built separately. Used when a section is only worth
---- adding if it ended up with any rows in it.
 function MenuObject:Attach(label, description, submenu)
     submenu.parent = self
 
@@ -193,7 +151,6 @@ function MenuObject:Attach(label, description, submenu)
     return item
 end
 
---- A plain, unselectable row. Useful as a heading or a status line.
 function MenuObject:Label(text)
     local item = newItem('label', text, '')
     item.enabled = false
@@ -204,10 +161,6 @@ end
 function MenuObject:SelectedItem()
     return self.items[index]
 end
-
--- ---------------------------------------------------------------------------
--- Opening and closing
--- ---------------------------------------------------------------------------
 
 local function firstSelectable(from, direction)
     local count = #current.items
@@ -252,12 +205,16 @@ function Menu.Current()
     return current
 end
 
---- Rebuild-safe refresh: keeps the cursor where it was if the row still exists.
 function Menu.Refresh()
     if not current then return end
     if index > #current.items then
         index = math.max(1, #current.items)
     end
+    local maxVisible = Config.MenuMaxVisible
+    if offset > math.max(0, #current.items - maxVisible) then
+        offset = math.max(0, #current.items - maxVisible)
+    end
+    if index <= offset then offset = index - 1 end
 end
 
 local function push(menu)
@@ -284,8 +241,6 @@ end
 
 Menu.Back = pop
 
---- Open a menu on top of the current one, so Backspace returns here. Used for
---- the lists that are built on demand, like the online player list.
 function Menu.Push(menu)
     if not current then
         Menu.Open(menu)
@@ -293,10 +248,6 @@ function Menu.Push(menu)
     end
     push(menu)
 end
-
--- ---------------------------------------------------------------------------
--- Navigation
--- ---------------------------------------------------------------------------
 
 local function move(direction)
     local count = #current.items
@@ -357,23 +308,19 @@ local function select()
     end
 end
 
--- ---------------------------------------------------------------------------
--- Render loop
--- ---------------------------------------------------------------------------
-
 local controlsToDisable = {
-    1, 2,          -- look
-    24, 25,        -- attack / aim
-    37,            -- weapon wheel
-    44,            -- cover
-    140, 141, 142, -- melee
+    1, 2,
+    24, 25,
+    37,
+    44,
+    140, 141, 142,
     143,
     257, 263, 264,
-    288, 289,      -- F1 / F2
-    170,           -- F3
-    166, 167, 168, -- F5 F6 F7
-    73,            -- X
-    172, 173, 174, 175, 176, 177, -- the keys the menu itself uses
+    288, 289,
+    170,
+    166, 167, 168,
+    73,
+    172, 173, 174, 175, 176, 177,
 }
 
 local function drawMenu()
@@ -382,12 +329,10 @@ local function drawMenu()
     local width = layout.width
     local r, g, b = colour()
 
-    -- header
     drawRect(x, y, width, layout.header, r, g, b, 235)
     drawText(current.title, x + width / 2, y + 0.022, 0.75, 255, 255, 255, 255, 'center')
     y = y + layout.header
 
-    -- subtitle and counter
     drawRect(x, y, width, layout.subtitle, 0, 0, 0, 230)
     drawText(current.subtitle ~= '' and current.subtitle or 'tsivtools', x + 0.006, y + 0.006,
         layout.textScale, 255, 255, 255, 255)
@@ -397,7 +342,6 @@ local function drawMenu()
     end
     y = y + layout.subtitle
 
-    -- rows
     local maxVisible = Config.MenuMaxVisible
     local last = math.min(offset + maxVisible, #current.items)
 
@@ -426,7 +370,6 @@ local function drawMenu()
         y = y + layout.item
     end
 
-    -- scroll indicator
     if #current.items > maxVisible then
         drawRect(x, y, width, 0.020, 0, 0, 0, 225)
         drawText(('%s  %d more  %s'):format(
@@ -437,7 +380,6 @@ local function drawMenu()
         y = y + 0.020
     end
 
-    -- description
     local item = current.items[index]
     if item and item.description ~= '' then
         local lines = descriptionLines(item.description)
@@ -446,13 +388,16 @@ local function drawMenu()
         drawText(item.description, x + 0.006, y + 0.009, 0.28, 255, 255, 255, 255)
     end
 
-    -- watermark
     if Config.MenuWatermark then
         drawText('tsivtools', x + width - 0.006, anchorY - 0.024, 0.30, r, g, b, 255, 'right')
     end
 end
 
+local inputLocked = false
+
 local function handleInput()
+    if inputLocked then return end
+
     for _, control in ipairs(controlsToDisable) do
         DisableControlAction(0, control, true)
     end
@@ -470,12 +415,12 @@ local function handleInput()
         return false
     end
 
-    if pressed(172, true) then move(-1) end          -- up
-    if pressed(173, true) then move(1) end           -- down
-    if pressed(174, true) then changeList(-1) end    -- left
-    if pressed(175, true) then changeList(1) end     -- right
-    if pressed(176) then select() end                -- enter
-    if pressed(177) then pop() end                   -- backspace
+    if pressed(172, true) then move(-1) end
+    if pressed(173, true) then move(1) end
+    if pressed(174, true) then changeList(-1) end
+    if pressed(175, true) then changeList(1) end
+    if pressed(176) then select() end
+    if pressed(177) then pop() end
 end
 
 CreateThread(function()
@@ -490,21 +435,23 @@ CreateThread(function()
     end
 end)
 
--- ---------------------------------------------------------------------------
--- Text input
--- ---------------------------------------------------------------------------
-
---- Blocking on-screen keyboard. Returns the typed string, or nil if cancelled.
-function TSIV.Input(title, default, maxLength)
+function tsivtools.Input(title, default, maxLength)
+    inputLocked = true
     AddTextEntry('TSIVTOOLS_INPUT', title or 'Enter a value')
-    DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', maxLength or 64)
+    DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', (maxLength or 64) + 1)
 
-    while UpdateOnscreenKeyboard() == 0 do
+    local status = UpdateOnscreenKeyboard()
+    local deadline = GetGameTimer() + 120000
+    while status ~= 1 and status ~= 2 and GetGameTimer() < deadline do
         DisableAllControlActions(0)
         Wait(0)
+        status = UpdateOnscreenKeyboard()
     end
 
-    if UpdateOnscreenKeyboard() ~= 1 then
+    inputLocked = false
+
+    if status ~= 1 then
+        if status == 0 then CancelOnscreenKeyboard() end
         return nil
     end
 
@@ -513,9 +460,8 @@ function TSIV.Input(title, default, maxLength)
     return result
 end
 
---- Input that must be a number. Returns nil when cancelled or not a number.
-function TSIV.InputNumber(title, default, maxLength)
-    local value = TSIV.Input(title, default and tostring(default) or '', maxLength or 10)
+function tsivtools.InputNumber(title, default, maxLength)
+    local value = tsivtools.Input(title, default and tostring(default) or '', maxLength or 10)
     if value == nil then return nil end
     return tonumber(value)
 end

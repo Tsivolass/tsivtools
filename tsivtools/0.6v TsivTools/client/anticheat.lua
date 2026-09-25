@@ -1,12 +1,12 @@
 local settings = Config.AntiCheat.client
 local blacklistedWeapons = {}
 
-for _, weapon in ipairs(settings.blacklistedWeapons or {}) do
+for _, weapon in ipairs(settings.blacklistedWeapons) do
     blacklistedWeapons[#blacklistedWeapons + 1] = { name = weapon, hash = GetHashKey(weapon) }
 end
 
 local function report(kind, detail)
-    TriggerServerEvent(TSIV.Events.report, kind, detail)
+    TriggerServerEvent(tsivtools.Events.report, kind, detail)
 end
 
 local lastCoords = nil
@@ -65,10 +65,14 @@ CreateThread(function()
     Wait(30000)
 
     while true do
-        Wait((settings.interval or 5) * 1000)
+        Wait(settings.interval * 1000)
 
         local ped = PlayerPedId()
-        if DoesEntityExist(ped) and not IsEntityDead(ped) then
+        local state = tsivtools.State
+        if state.noclip or state.spectating then
+            lastCoords = nil
+            lastCheck = 0
+        elseif DoesEntityExist(ped) and not IsEntityDead(ped) then
             if settings.speedCheck then speedCheck(ped) end
             if settings.healthCheck then healthCheck(ped) end
             if settings.weaponCheck then weaponCheck(ped) end
