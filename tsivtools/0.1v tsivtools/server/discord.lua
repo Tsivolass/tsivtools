@@ -11,11 +11,36 @@ local function post(url, payload)
     end, 'POST', json.encode(payload), { ['Content-Type'] = 'application/json' })
 end
 
+local function embedSize(embed)
+    local size = #embed.title + #embed.description + #embed.footer.text
+    for _, field in ipairs(embed.fields) do
+        size = size + #field.name + #field.value
+    end
+    return size
+end
+
 CreateThread(function()
     while true do
         Wait(1200)
         local item = table.remove(queue, 1)
-        if item then post(item.url, item.payload) end
+        if item then
+            local embeds = item.payload.embeds
+            local size = embedSize(embeds[1])
+            local index = 1
+            while index <= #queue and #embeds < 10 do
+                local waiting = queue[index]
+                if waiting.url == item.url then
+                    local extra = embedSize(waiting.payload.embeds[1])
+                    if size + extra > 5500 then break end
+                    embeds[#embeds + 1] = waiting.payload.embeds[1]
+                    size = size + extra
+                    table.remove(queue, index)
+                else
+                    index = index + 1
+                end
+            end
+            post(item.url, item.payload)
+        end
         if dropped > 0 and #queue == 0 then
             print(('%sdiscord was too slow, %d log message(s) were skipped'):format(Config.ConsolePrefix, dropped))
             dropped = 0

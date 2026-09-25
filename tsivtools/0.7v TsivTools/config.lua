@@ -187,6 +187,7 @@ Config.security = {
     maxMonitorMinutes = 10,
     detectionRetention = 100,
     timelineRetention = 100,
+    historyDays = 90,
     heatmap = {
         enabled = false,
         gridSize = 50.0,

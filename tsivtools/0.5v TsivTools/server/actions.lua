@@ -47,7 +47,6 @@ tsivtools.RegisterRequest('player.list', 'player.list', function(src)
     for _, id in ipairs(GetPlayers()) do
         id = tonumber(id)
         local ped = GetPlayerPed(id)
-        local coords = ped ~= 0 and GetEntityCoords(ped) or vector3(0.0, 0.0, 0.0)
         local rank = tsivtools.GetRank(id)
         out[#out + 1] = {
             id = id,
@@ -56,7 +55,6 @@ tsivtools.RegisterRequest('player.list', 'player.list', function(src)
             rankLabel = rank and tsivtools.RankLabel(rank) or nil,
             ping = GetPlayerPing(id),
             health = ped ~= 0 and GetEntityHealth(ped) or 0,
-            coords = { x = coords.x, y = coords.y, z = coords.z },
         }
     end
     table.sort(out, function(a, b) return a.id < b.id end)

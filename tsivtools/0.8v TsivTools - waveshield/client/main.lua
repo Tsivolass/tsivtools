@@ -140,27 +140,73 @@ local function buildSelf(menu)
     end)
 end
 
-local function buildPlayers(menu)
-    if not can('player.list') then return end
+local function playerList(onPick)
+    local list = tsivtools.Menu.Create('Online Players', 'Press Enter on a player for actions !')
 
-    menu:Button('Online Players', 'live player overview', function()
+    list.onOpen = function()
         CreateThread(function()
             local players = tsivtools.Request('player.list')
-            local lines = {}
-            for _, player in ipairs(players or {}) do
-                lines[#lines + 1] = ('[%s] %s | ping %d | health %d'):format(
-                    player.id, player.name, player.ping or 0, player.health or 0)
+            if not players then return end
+            local query = list.query
+
+            list:Clear()
+            local search = list:Button('Search by name or ID', 'Leave it empty to show everyone again !', function()
+                CreateThread(function()
+                    local text = tsivtools.Input('Search players', query or '', 32)
+                    if not text then return end
+                    list.query = text ~= '' and text:lower() or nil
+                    list.onOpen()
+                end)
+            end)
+            search.right = query or ''
+
+            local shown = 0
+            for _, player in ipairs(players) do
+                if not query or tostring(player.id) == query or player.name:lower():find(query, 1, true) then
+                    local row = list:Button(('[%d] %s'):format(player.id, player.name),
+                        ('ping %dms   health %d%s'):format(player.ping, player.health,
+                            player.rankLabel and ('   staff: ' .. player.rankLabel) or ''),
+                        function() onPick(player) end)
+                    row.right = ('%dms'):format(player.ping)
+                    shown = shown + 1
+                end
             end
-            tsivtools.ShowBlock({ title = 'Online Players', lines = lines })
+
+            if shown == 0 then
+                list:Label(query and 'Nobody matches that search !' or 'Nobody online !!')
+            end
+            list.subtitle = ('%d online'):format(#players)
+            tsivtools.Menu.Refresh()
         end)
-    end)
+    end
+
+    return list
+end
+
+local function buildPlayers(menu, player)
+    if not can('player.list') then return end
+
+    local withTarget = withTarget
+    if player then
+        withTarget = function(fn)
+            CreateThread(function() fn(player.id) end)
+        end
+    else
+        menu:Attach('Online Players', 'Everyone on the server, pick one for actions !', playerList(function(picked)
+            local actions = tsivtools.Menu.Create(picked.name, ('id %d'):format(picked.id))
+            buildPlayers(actions, picked)
+            tsivtools.Menu.Push(actions)
+        end))
+    end
 
     if can('security.view') then
-        menu:Button('Suspicious Players', 'Players that have been recently flagged by TsivTools !', function()
-            CreateThread(function()
-                tsivtools.ShowBlock(tsivtools.Request('security.detections', { severity = 'all', kind = 'all' }))
+        if not player then
+            menu:Button('Suspicious Players', 'Players that have been recently flagged by TsivTools !', function()
+                CreateThread(function()
+                    tsivtools.ShowBlock(tsivtools.Request('security.detections', { severity = 'all', kind = 'all' }))
+                end)
             end)
-        end)
+        end
         menu:Button('Player Security Profile', 'Identity, detections and risk !', function()
             withTarget(function(target)
                 CreateThread(function()
@@ -373,8 +419,10 @@ local function buildPlayers(menu)
             end) end
             tsivtools.Menu.Push(sub)
         end
-        menu:Button('Online watchlisted players', 'search online watchlisted players !', function() watchMenu(true) end)
-        menu:Button('All watchlisted players', 'search all watchlisted players !', function() watchMenu(false) end)
+        if not player then
+            menu:Button('Online watchlisted players', 'search online watchlisted players !', function() watchMenu(true) end)
+            menu:Button('All watchlisted players', 'search all watchlisted players !', function() watchMenu(false) end)
+        end
     end
 
     if can('player.tags') then
@@ -405,7 +453,7 @@ local function buildPlayers(menu)
         end)
     end
 
-    if can('player.relationships') then
+    if can('player.relationships') and not player then
         menu:Button('Link player to another', 'Enter the current player ID, then the related player ID !', function()
             CreateThread(function()
                 local target = tsivtools.InputNumber('Current player ID', '', 6)
@@ -434,7 +482,7 @@ local function buildPlayers(menu)
             end)
     end
 
-    if can('player.unban') then
+    if can('player.unban') and not player then
         local bans = tsivtools.Menu.Create('Active bans', 'Select a ban to remove it !')
         bans.onOpen = function()
             CreateThread(function()
@@ -508,9 +556,29 @@ local function buildSecurity(menu)
     menu:Button('WaveShield Detection Feed', 'Recent logs from Wave !', function()
         CreateThread(function() tsivtools.ShowBlock(tsivtools.Request('security.waveshield.logs')) end)
     end)
-    menu:Button('WaveShield Online Players', 'Players currently reported by WaveShield !', function()
-        CreateThread(function() tsivtools.ShowBlock(tsivtools.Request('security.waveshield.players')) end)
-    end)
+    local wavePlayers = tsivtools.Menu.Create('WaveShield Online Players', 'Press Enter for their WaveShield profile !')
+    wavePlayers.onOpen = function()
+        CreateThread(function()
+            local result = tsivtools.Request('security.waveshield.players')
+            wavePlayers:Clear()
+            if not result or result.error then
+                wavePlayers:Label('Unavailable: ' .. (result and result.error or 'no answer from the server'))
+            elseif #result.players == 0 then
+                wavePlayers:Label('No WaveShield online players were returned.')
+            else
+                for _, player in ipairs(result.players) do
+                    wavePlayers:Button(player.name, player.license, function()
+                        CreateThread(function()
+                            tsivtools.ShowBlock(tsivtools.Request('security.waveshield.profile', { identifier = player.license }))
+                        end)
+                    end)
+                end
+                wavePlayers.subtitle = ('%d reported by WaveShield'):format(#result.players)
+            end
+            tsivtools.Menu.Refresh()
+        end)
+    end
+    menu:Attach('WaveShield Online Players', 'Players currently reported by WaveShield !', wavePlayers)
     if can('security.waveshield.ban') then
         menu:Button('WaveShield Ban Player', 'Wave Ban a player !', function()
             withTarget(function(target)

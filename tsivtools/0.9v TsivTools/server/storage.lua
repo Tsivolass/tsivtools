@@ -68,18 +68,60 @@ local function loadFile(name)
     return cache[name]
 end
 
+local writes = {}
+
 local function saveFile(name)
     local data = cache[name]
     if not data then return end
+    writes[name] = (writes[name] or 0) + 1
     SaveResourceFile(tsivtools.resource, filePath(name), json.encode(data), -1)
+end
+
+local function encodeSlowly(data)
+    local parts = {}
+    local count = #data
+    if count > 0 then
+        local items = table.move(data, 1, count, 1, {})
+        for index = 1, count do
+            parts[index] = json.encode(items[index])
+            if index % 200 == 0 then Wait(0) end
+        end
+        return '[' .. table.concat(parts, ',') .. ']'
+    end
+
+    local keys = {}
+    for key in pairs(data) do
+        if type(key) ~= 'string' then return json.encode(data) end
+        keys[#keys + 1] = key
+    end
+    if #keys == 0 then return json.encode(data) end
+
+    for index, key in ipairs(keys) do
+        local value = data[key]
+        if value ~= nil then parts[#parts + 1] = json.encode(key) .. ':' .. json.encode(value) end
+        if index % 200 == 0 then Wait(0) end
+    end
+    return '{' .. table.concat(parts, ',') .. '}'
+end
+
+local function saveInBackground(name)
+    local data = cache[name]
+    if not data then return end
+    local before = writes[name] or 0
+    local text = encodeSlowly(data)
+    if (writes[name] or 0) ~= before then return end
+    writes[name] = before + 1
+    SaveResourceFile(tsivtools.resource, filePath(name), text, -1)
 end
 
 CreateThread(function()
     while true do
-        Wait(5000)
-        for name in pairs(dirty) do
-            saveFile(name)
+        Wait(10000)
+        local names = {}
+        for name in pairs(dirty) do names[#names + 1] = name end
+        for _, name in ipairs(names) do
             dirty[name] = nil
+            saveInBackground(name)
         end
     end
 end)

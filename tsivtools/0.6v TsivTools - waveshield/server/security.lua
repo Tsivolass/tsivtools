@@ -124,15 +124,13 @@ end)
 
 local function remember(src)
     local identifier = tsivtools.GetPrimaryIdentifier(src)
-    local ids = tsivtools.GetIdentifiers(src)
     local entry = history[identifier] or {
-        identifier = identifier, names = {}, identifiers = {}, joins = {},
+        identifier = identifier, names = {}, joins = {},
         firstSeen = now(),
     }
     entry.lastSeen = now()
     entry.currentName = tsivtools.GetName(src)
     entry.currentId = src
-    entry.identifiers = ids
     local known = false
     for _, name in ipairs(entry.names) do
         if name == entry.currentName then known = true break end
@@ -145,18 +143,34 @@ local function remember(src)
     tsivtools.Storage.MarkDirty('player_history')
 end
 
-local function onlineByIdentifier(identifier)
-    for _, raw in ipairs(GetPlayers()) do
-        local src = tonumber(raw)
-        if tsivtools.GetPrimaryIdentifier(src) == identifier then return src end
+local function forgetOldPlayers()
+    local cutoff = now() - Config.security.historyDays * 86400
+    local changed = false
+    for identifier, entry in pairs(history) do
+        if entry.identifiers then
+            entry.identifiers = nil
+            changed = true
+        end
+        if (entry.lastSeen or 0) < cutoff then
+            history[identifier] = nil
+            changed = true
+        end
     end
+    if changed then tsivtools.Storage.MarkDirty('player_history') end
 end
+
+CreateThread(function()
+    while true do
+        forgetOldPlayers()
+        Wait(3600000)
+    end
+end)
 
 local function activeIdentifiers()
     local out = {}
     for _, raw in ipairs(GetPlayers()) do
         local src = tonumber(raw)
-        out[tsivtools.GetPrimaryIdentifier(src)] = true
+        out[tsivtools.GetPrimaryIdentifier(src)] = src
     end
     return out
 end
@@ -274,7 +288,7 @@ local function profile(src, target)
         ('last seen: %s'):format(entry.lastSeen and os.date('%Y-%m-%d %H:%M:%S', entry.lastSeen) or 'now'),
         ('detections: %d'):format(count),
         ('previous names: %s'):format(table.concat(entry.names or {}, ', ')),
-        ('identifiers: %s'):format(json.encode(entry.identifiers or tsivtools.GetIdentifiers(target))),
+        ('identifiers: %s'):format(json.encode(tsivtools.GetIdentifiers(target))),
     }
     for _, item in ipairs(detections) do
         if item.source == identifier then
@@ -432,17 +446,15 @@ end)
 
 tsivtools.RegisterRequest('security.waveshield.players', 'security.view', function()
     local response, err = waveGet(Config.waveshield.api.playersPath)
-    if not response then
-        return { title = 'WaveShield players', lines = { 'Unavailable: ' .. (err or 'unknown error') } }
-    end
-    local lines = {}
+    if not response then return { error = err or 'unknown error' } end
+    local players = {}
     for _, player in ipairs(waveArray(response)) do
-        lines[#lines + 1] = ('%s | %s'):format(
-            tostring(player.playerName or player.name or player.id or 'unknown'),
-            tostring(player.license or player.identifier or player.id or ''))
+        players[#players + 1] = {
+            name = tostring(player.playerName or player.name or player.id or 'unknown'),
+            license = tostring(player.license or player.identifier or player.id or ''),
+        }
     end
-    if #lines == 0 then lines[1] = 'No WaveShield online players were returned.' end
-    return { title = 'WaveShield online players', lines = lines }
+    return { players = players }
 end)
 
 tsivtools.RegisterRequest('security.waveshield.profile', 'security.view', function(_, payload)
@@ -500,13 +512,11 @@ tsivtools.RegisterRequest('security.alerts', 'security.view', function()
     local detections = allDetections()
     local out = {}
     for _, item in ipairs(detections) do
-        if online[item.source] then
-            local target = onlineByIdentifier(item.source)
-            if target then
-                item.target = target
-                item.risk = riskFor(item.source, detections)
-                out[#out + 1] = item
-            end
+        local target = online[item.source]
+        if target then
+            item.target = target
+            item.risk = riskFor(item.source, detections)
+            out[#out + 1] = item
         end
     end
     return out

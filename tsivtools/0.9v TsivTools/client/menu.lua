@@ -219,6 +219,7 @@ function Menu.Refresh()
 end
 
 local function push(menu)
+    current.lastIndex, current.lastOffset = index, offset
     stack[#stack + 1] = menu
     current = menu
     index = firstSelectable(1, 1)
@@ -234,8 +235,8 @@ local function pop()
     end
     table.remove(stack)
     current = stack[#stack]
-    index = firstSelectable(1, 1)
-    offset = 0
+    index = current.lastIndex or firstSelectable(1, 1)
+    offset = current.lastOffset or 0
     sound('BACK')
     if current.onOpen then current.onOpen(current) end
 end

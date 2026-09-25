@@ -52,14 +52,11 @@ function Logs.Write(entry)
     else
         local store = fileStore()
         store[#store + 1] = record
-        local overflow = #store - Config.Logging.maxEntries
-        if overflow > 0 then
-            local trimmed = {}
-            for index = overflow + 1, #store do
-                trimmed[#trimmed + 1] = store[index]
-            end
-            for key in pairs(store) do store[key] = nil end
-            for index, value in ipairs(trimmed) do store[index] = value end
+        local count = #store
+        if count > Config.Logging.maxEntries then
+            local keep = math.floor(Config.Logging.maxEntries * 0.9)
+            table.move(store, count - keep + 1, count, 1)
+            for index = count, keep + 1, -1 do store[index] = nil end
         end
         tsivtools.Storage.MarkDirty('logs')
     end
