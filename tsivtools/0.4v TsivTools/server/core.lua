@@ -123,11 +123,6 @@ function tsivtools.Can(src, key)
     return tsivtools.HasPermission(rank, key)
 end
 
-function tsivtools.OutranksTarget(src, target)
-    if src == 0 or src == target then return true end
-    return tsivtools.RankLevel(tsivtools.GetRank(src)) > tsivtools.RankLevel(tsivtools.GetRank(target))
-end
-
 function tsivtools.GetStaff(minRank)
     local minLevel = minRank and tsivtools.RankLevel(minRank) or 1
     local out = {}
@@ -231,20 +226,6 @@ local function forgedEvent(src, name)
     end
 end
 
-local protected = {
-    ['player.bring']            = true,
-    ['player.slay']             = true,
-    ['player.freeze']           = true,
-    ['player.kick']             = true,
-    ['player.warn']             = true,
-    ['player.setrank']          = true,
-    ['player.ban']              = true,
-    ['player.tag']              = true,
-    ['cleanup.player']          = true,
-    ['watchlist.add']           = true,
-    ['security.waveshield.ban'] = true,
-}
-
 local function allowRate(src)
     local now = GetGameTimer() / 1000.0
     local bucket = rateLimit[src]
@@ -286,14 +267,7 @@ RegisterNetEvent(tsivtools.Events.action, function(name, payload)
         return
     end
 
-    payload = type(payload) == 'table' and payload or {}
-    local target = protected[name] and tsivtools.ResolveTarget(payload.target)
-    if target and not tsivtools.OutranksTarget(src, target) then
-        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
-        return
-    end
-
-    local ok, err = pcall(entry.handler, src, payload)
+    local ok, err = pcall(entry.handler, src, type(payload) == 'table' and payload or {})
     if not ok then
         print(('%saction "%s" failed: %s'):format(Config.ConsolePrefix, name, err))
         tsivtools.Notify(src, 'That action failed! report to dev !!', 'error')

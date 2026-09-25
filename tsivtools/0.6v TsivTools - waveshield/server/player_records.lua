@@ -309,41 +309,26 @@ tsivtools.RegisterAction('watchlist.remove', 'player.watchlist', function(src, p
     Logs.Staff(src, ('Removed %s from the watchlist'):format(identifier), identifier)
 end)
 
-local function staffLevelOf(identifiers)
-    local level = 0
-    for _, identifier in pairs(identifiers) do
-        level = math.max(level,
-            tsivtools.RankLevel(Config.staff[identifier]),
-            tsivtools.RankLevel(tsivtools.StaffStore()[identifier]))
-    end
-    return level
-end
-
 tsivtools.RegisterAction('watchlist.ban', 'player.ban', function(src, payload)
-    local entry = findWatch(tsivtools.SafeString(payload.identifier, 80))
-    if not entry then
-        tsivtools.Notify(src, 'That player is not on the watchlist !', 'error')
-        return
-    end
-
     local identifiers = {}
-    for _, identifier in pairs(decodeIdentifiers(entry.identifiers)) do
-        if type(identifier) == 'string' then identifiers[#identifiers + 1] = identifier end
+    if type(payload.identifiers) == 'table' then
+        for _, identifier in pairs(payload.identifiers) do
+            if type(identifier) == 'string' then
+                identifiers[#identifiers + 1] = tsivtools.SafeString(identifier, 80)
+            end
+        end
     end
-    if #identifiers == 0 then identifiers[1] = entry.identifier end
-
-    if src ~= 0 and staffLevelOf(identifiers) >= tsivtools.RankLevel(tsivtools.GetRank(src)) then
-        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
+    if #identifiers == 0 then
+        tsivtools.Notify(src, 'No stored identifiers are available for that player.', 'error')
         return
     end
 
     local reason = tsivtools.SafeString(payload.reason, 200)
     if reason == '' then reason = 'No reason given' end
 
-    local ban = Bans.Add(identifiers, entry.name or '', reason, 0, tsivtools.GetName(src))
+    local ban = Bans.Add(identifiers, tsivtools.SafeString(payload.name, 48), reason, 0, tsivtools.GetName(src))
     if ban then
         tsivtools.Notify(src, ('Offline ban created (#%d).'):format(ban.id), 'success')
-        Logs.Staff(src, ('Offline banned %s - %s'):format(entry.name or entry.identifier, reason), entry.identifier)
     else
         tsivtools.Notify(src, 'The ban could not be stored !!', 'error')
     end

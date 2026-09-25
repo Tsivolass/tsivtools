@@ -683,10 +683,6 @@ RegisterCommand('bring', function(src, args)
         tsivtools.Notify(src, '/bring <id>', 'error')
         return
     end
-    if not tsivtools.OutranksTarget(src, target) then
-        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
-        return
-    end
 
     local coords = pedCoords(src)
     if coords then
@@ -728,10 +724,6 @@ RegisterCommand('slay', function(src, args)
     local target = tsivtools.ResolveTarget(args[1])
     if not target then
         tsivtools.Notify(src, 'usage: /slay <server id>', 'error')
-        return
-    end
-    if not tsivtools.OutranksTarget(src, target) then
-        tsivtools.Notify(src, 'That player is your rank or higher !', 'error')
         return
     end
     run(target, 'slay', {})

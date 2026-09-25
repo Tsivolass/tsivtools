@@ -188,10 +188,6 @@ everything that matters is decided there:
 - Somebody with no staff rank who fires a staff event gets an alert the first
   time and `Config.anticheat.forgedEvents.action` (a ban by default) the second,
   because the real menu never sends one without a rank.
-- Kick, ban, slay, freeze, bring, warn, tags, the watchlist and set rank only
-  work on players ranked below you, so a compromised mod cannot touch an admin.
-- Offline bans from the watchlist use the identifiers the server stored, never
-  a list sent by the client.
 - Events are rate limited per player, and staff payloads are never passed on to
   another player's client.
 - Webhooks and API keys belong in `server.cfg` convars (`set`, not `setr`),
