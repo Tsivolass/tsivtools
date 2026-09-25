@@ -9,7 +9,11 @@ local blacklistedPeds     = TSIV.BuildModelSet(settings.blacklistedPeds)
 
 local windows = {}
 local createdBy = {}
+local ownerOfEntity = {}
 local burst = {}
+local reportedAt = {}
+
+local reportKinds = { speed = true, health = true, armour = true, weapon = true }
 
 local scriptPopulationTypes = { [6] = true, [7] = true }
 
@@ -73,6 +77,7 @@ end
 local function remember(src, entity, model, kind)
     createdBy[src] = createdBy[src] or {}
     createdBy[src][entity] = { model = model, kind = kind, at = os.time() }
+    ownerOfEntity[entity] = src
 end
 
 function AntiCheat.DeleteEntitiesOf(src, kind)
@@ -81,27 +86,26 @@ function AntiCheat.DeleteEntitiesOf(src, kind)
 
     local removed = 0
     for entity, info in pairs(owned) do
-        if (not kind or kind == 'all' or info.kind == kind) and DoesEntityExist(entity) then
-            DeleteEntity(entity)
+        if not kind or kind == 'all' or info.kind == kind then
+            if DoesEntityExist(entity) then
+                DeleteEntity(entity)
+                removed = removed + 1
+            end
             owned[entity] = nil
-            removed = removed + 1
+            ownerOfEntity[entity] = nil
         end
     end
     return removed
 end
 
-local function punish(src, action, reason, banLength, detail)
-    local name = TSIV.GetName(src)
-    local steam = TSIV.GetSteamId(src)
-    local identifier = TSIV.GetPrimaryIdentifier(src)
-
-    local headline = ('%s^1[anticheat]^7 %s ^3(id %s)^7 - %s'):format(Config.prefix, name, src, reason)
+local function punishNow(src, player, action, reason, banLength, detail)
+    local headline = ('%s^1[anticheat]^7 %s ^3(id %s)^7 - %s'):format(Config.prefix, player.name, src, reason)
 
     local lines = {
-        ('player    : %s'):format(name),
+        ('player    : %s'):format(player.name),
         ('user ID   : %s'):format(src),
-        ('steam ID  : %s'):format(steam),
-        ('identifier: %s'):format(identifier),
+        ('steam ID  : %s'):format(player.steam),
+        ('identifier: %s'):format(player.identifier),
         ('detection : %s'):format(reason),
     }
     for _, extra in ipairs(detail or {}) do
@@ -113,17 +117,41 @@ local function punish(src, action, reason, banLength, detail)
 
     TSIV.Logs.Write({
         category = 'anticheat',
-        message = ('%s - %s (action: %s)'):format(name, reason, action),
-        target = identifier,
-        targetName = name,
-        data = { steam = steam, userId = src, detail = detail },
+        message = ('%s - %s (action: %s)'):format(player.name, reason, action),
+        target = player.identifier,
+        targetName = player.name,
+        data = { steam = player.steam, userId = src, reason = reason, detail = detail },
     })
 
+    local online = GetPlayerName(src) ~= nil
+
     if action == 'ban' then
-        TSIV.Bans.BanPlayer(src, ('[tsivtools] %s'):format(reason), banLength or 0, 'tsivtools anticheat')
-    elseif action == 'kick' then
+        local text = ('[tsivtools] %s'):format(reason)
+        if online then
+            TSIV.Bans.BanPlayer(src, text, banLength or 0, 'tsivtools anticheat')
+        else
+            TSIV.Bans.Add(player.identifiers, player.name, text, banLength or 0, 'tsivtools anticheat')
+        end
+    elseif action == 'kick' and online then
         DropPlayer(src, ('Kicked by TsivTools.\n\nReason: %s'):format(reason))
     end
+end
+
+local function punish(src, action, reason, banLength, detail)
+    local ids = TSIV.GetIdentifiers(src)
+    local player = {
+        name = TSIV.GetName(src),
+        steam = ids.steam or 'no steam id',
+        identifier = TSIV.GetPrimaryIdentifier(src),
+        identifiers = {},
+    }
+    for _, identifier in pairs(ids) do
+        player.identifiers[#player.identifiers + 1] = identifier
+    end
+
+    CreateThread(function()
+        punishNow(src, player, action, reason, banLength, detail)
+    end)
 end
 
 AntiCheat.Punish = punish
@@ -319,9 +347,10 @@ AddEventHandler('entityCreated', function(entity)
 end)
 
 AddEventHandler('entityRemoved', function(entity)
-    for _, owned in pairs(createdBy) do
-        owned[entity] = nil
-    end
+    local owner = ownerOfEntity[entity]
+    if not owner then return end
+    ownerOfEntity[entity] = nil
+    if createdBy[owner] then createdBy[owner][entity] = nil end
 end)
 
 AddEventHandler('explosionEvent', function(sender, ev)
@@ -358,17 +387,15 @@ end)
 RegisterNetEvent(TSIV.Events.report, function(kind, detail)
     local src = source
     if not settings.enabled or not settings.client.enabled then return end
+    if not reportKinds[kind] then return end
     if isExempt(src) then return end
-    if type(kind) ~= 'string' then return end
 
-    kind = TSIV.SafeString(kind, 32)
+    reportedAt[src] = reportedAt[src] or {}
+    local now = GetGameTimer()
+    if reportedAt[src][kind] and now - reportedAt[src][kind] < 30000 then return end
+    reportedAt[src][kind] = now
+
     detail = TSIV.SafeString(detail, 160)
-
-    windows[src] = windows[src] or {}
-    local key = 'report:' .. kind
-    local window = windowFor(src, key, 30.0)
-    local count = window:push(true)
-    if count > 1 then return end
 
     TSIV.StaffBroadcast(settings.alertRank,
         ('%s^3[client check]^7 %s ^3(id %s)^7 - %s'):format(Config.prefix, TSIV.GetName(src), src, kind), {
@@ -385,7 +412,7 @@ RegisterNetEvent(TSIV.Events.report, function(kind, detail)
         message = ('client check "%s" on %s - %s'):format(kind, TSIV.Describe(src), detail),
         target = TSIV.GetPrimaryIdentifier(src),
         targetName = TSIV.GetName(src),
-        data = { userId = src, steam = TSIV.GetSteamId(src), check = kind, detail = detail },
+        data = { userId = src, steam = TSIV.GetSteamId(src), check = kind, reason = 'client check ' .. kind, detail = detail },
     })
 end)
 
@@ -400,10 +427,15 @@ AddEventHandler('playerDropped', function()
         end
     end
 
+    for entity in pairs(createdBy[src] or {}) do
+        ownerOfEntity[entity] = nil
+    end
+
     windows[src] = nil
     createdBy[src] = nil
     burst[src] = nil
     alertedAt[src] = nil
+    reportedAt[src] = nil
 end)
 
 TSIV.RegisterRequest('anticheat.status', 'staff.alerts', function()

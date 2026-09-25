@@ -17,7 +17,7 @@ local function initFileIds()
 end
 
 CreateThread(function()
-    Wait(500)
+    TSIV.Storage.WaitReady()
     if not TSIV.Storage.UsingMysql() then
         initFileIds()
     end
@@ -41,7 +41,7 @@ function Logs.Write(entry)
     nextId = nextId + 1
 
     if TSIV.Storage.UsingMysql() then
-        TSIV.Storage.Insert(([[
+        TSIV.Storage.InsertLater(([[
             INSERT INTO `%s` (category, created_at, actor, actor_name, target, target_name, message, data)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ]]):format(Config.database.logTable), {
@@ -92,8 +92,8 @@ function Logs.Staff(src, message, target, data)
 end
 
 function Logs.Search(query, limit, category)
-    query = (query or ''):lower()
-    limit = math.min(limit or 25, 100)
+    query = TSIV.SafeString(query, 64):lower()
+    limit = TSIV.ToInt(limit, 1, 100) or 25
 
     local results = {}
 
@@ -145,8 +145,8 @@ TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
     local query = TSIV.SafeString(payload.query, 64)
     if query == '' then return { lines = { 'Nothing to search for !' } } end
 
-    local category = payload.category
-    local entries = Logs.Search(query, payload.limit or 25, category)
+    local category = TSIV.SafeString(payload.category, 16)
+    local entries = Logs.Search(query, payload.limit, category ~= '' and category or nil)
     local counts, total = Logs.Summary(query)
 
     local lines = {}
@@ -188,8 +188,9 @@ TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
 end)
 
 TSIV.RegisterRequest('logs.recent', 'staff.logs', function(src, payload)
-    local category = payload.category or 'all'
-    local entries = Logs.Search('', payload.limit or 25, category)
+    local category = TSIV.SafeString(payload.category, 16)
+    if category == '' then category = 'all' end
+    local entries = Logs.Search('', payload.limit, category)
     local lines = {}
     for _, entry in ipairs(entries) do
         lines[#lines + 1] = ('[%s] %-9s %s%s'):format(

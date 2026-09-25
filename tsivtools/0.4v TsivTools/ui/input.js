@@ -40,7 +40,6 @@
         title.textContent = data.title || 'Enter a value';
         field.value = data.default || '';
         field.setAttribute('maxlength', maxLength || 255);
-        field.type = data.numeric ? 'text' : 'text';
         field.setAttribute('inputmode', data.numeric ? 'decimal' : 'text');
 
         overlay.classList.remove('hidden');

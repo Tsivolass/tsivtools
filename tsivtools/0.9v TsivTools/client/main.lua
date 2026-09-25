@@ -119,12 +119,9 @@ local function buildSelf(menu)
 
     if can('self.tpsaved') and #Config.teleports > 0 then
         local teleports = TSIV.Menu.Create('Teleports', 'from config.lua')
-        for _, entry in ipairs(Config.teleports) do
+        for index, entry in ipairs(Config.teleports) do
             teleports:Button(entry.label, ('%.0f, %.0f, %.0f'):format(entry.coords.x, entry.coords.y, entry.coords.z), function()
-                TSIV.Action('self.teleport', {
-                    saved = true,
-                    x = entry.coords.x, y = entry.coords.y, z = entry.coords.z,
-                })
+                TSIV.Action('self.teleport', { saved = index })
             end)
         end
         menu:Attach('Saved locations', 'Known locations across all fiveM servers', teleports)
@@ -284,11 +281,18 @@ local function buildPlayers(menu)
                 end)
             end)
         end)
+        local function ask(title, length, send)
+            CreateThread(function()
+                local text = TSIV.Input(title, '', length)
+                if text then send(text) end
+            end)
+        end
+
         local function watchMenu(online)
             local sub = TSIV.Menu.Create(online and 'Online watchlisted players' or 'All watchlisted players', 'Press Enter for actions !')
-            sub.onOpen = function()
-                sub:Clear()
+            sub.onOpen = function() CreateThread(function()
                 local list = TSIV.Request('watchlist.list', { online = online })
+                sub:Clear()
                 if not list or #list == 0 then sub:Label('No watchlisted players.')
                 else
                     for _, entry in ipairs(list) do
@@ -307,24 +311,32 @@ local function buildPlayers(menu)
                                     local discord = entry.identifiers and entry.identifiers.discord or 'not recorded'
                                     TSIV.ShowBlock({ title = entry.name .. ' Discord', lines = { discord } })
                                 end)
-                                if entry.online then
-                                    actions:Button('Spectate', 'Spectate this player !', function() TSIV.Action('player.spectate', { target = entry.online }) end)
-                                    actions:Button('Goto', 'Teleport to this player !', function() TSIV.Action('player.goto', { target = entry.online }) end)
-                                    actions:Button('Bring', 'Bring this player !', function() TSIV.Action('player.bring', { target = entry.online }) end)
-                                    actions:Button('Warn', 'Warn this player !', function()
-                                        local reason = TSIV.Input('Warning reason', '', 120)
-                                        if reason then TSIV.Action('player.warn', { target = entry.online, reason = reason }) end
-                                    end)
-                                    actions:Button('Ban', 'Ban this player !', function()
-                                        local reason = TSIV.Input('Ban reason', '', 150)
-                                        if reason then TSIV.Action('player.ban', { target = entry.online, minutes = 0, reason = reason }) end
-                                    end)
+                                local target = entry.online
+                                if target then
+                                    if can('player.spectate') then
+                                        actions:Button('Spectate', 'Spectate this player !', function() TSIV.Action('player.spectate', { target = target }) end)
+                                    end
+                                    if can('player.goto') then
+                                        actions:Button('Goto', 'Teleport to this player !', function() TSIV.Action('player.goto', { target = target }) end)
+                                    end
+                                    if can('player.bring') then
+                                        actions:Button('Bring', 'Bring this player !', function() TSIV.Action('player.bring', { target = target }) end)
+                                    end
+                                    if can('player.warn') then
+                                        actions:Button('Warn', 'Warn this player !', function()
+                                            ask('Warning reason', 120, function(reason) TSIV.Action('player.warn', { target = target, reason = reason }) end)
+                                        end)
+                                    end
+                                    if can('player.ban') then
+                                        actions:Button('Ban', 'Ban this player !', function()
+                                            ask('Ban reason', 150, function(reason) TSIV.Action('player.ban', { target = target, minutes = 0, reason = reason }) end)
+                                        end)
+                                    end
                                 elseif can('player.ban') then
                                     actions:Button('Offline Ban', 'Ban this player using his identifiers !', function()
-                                        local reason = TSIV.Input('Ban reason', '', 150)
-                                        if reason then TSIV.Action('watchlist.ban', {
-                                            identifiers = entry.identifiers, name = entry.name, reason = reason,
-                                        }) end
+                                        ask('Ban reason', 150, function(reason)
+                                            TSIV.Action('watchlist.ban', { identifiers = entry.identifiers, name = entry.name, reason = reason })
+                                        end)
                                     end)
                                 end
                                 TSIV.Menu.Push(actions)
@@ -333,8 +345,7 @@ local function buildPlayers(menu)
                     end
                 end
                 TSIV.Menu.Refresh()
-            end
-            sub.onOpen()
+            end) end
             TSIV.Menu.Push(sub)
         end
         menu:Button('Online watchlisted players', 'search online watchlisted players !', function() watchMenu(true) end)
@@ -446,7 +457,9 @@ local function buildSecurity(menu)
                     ('%s | risk %d/100'):format(alert.kind, alert.risk), function()
                         local actions = TSIV.Menu.Create(alert.name, 'Security response')
                         actions:Button('Investigate', 'Open a player security profile !', function()
-                            TSIV.ShowBlock(TSIV.Request('security.profile', { target = alert.target }))
+                            CreateThread(function()
+                                TSIV.ShowBlock(TSIV.Request('security.profile', { target = alert.target }))
+                            end)
                         end)
                         if can('player.spectate') then
                             actions:Button('Spectate', 'spectate this alert !', function()
@@ -817,7 +830,19 @@ local function buildRoot()
     end
 end
 
+local function sameAccess(a, b)
+    if not a or not b or a.rank ~= b.rank then return false end
+    for key in pairs(a.granted) do
+        if not b.granted[key] then return false end
+    end
+    for key in pairs(b.granted) do
+        if not a.granted[key] then return false end
+    end
+    return true
+end
+
 RegisterNetEvent(TSIV.Events.permissions, function(payload)
+    local previous = permissions
     permissions = payload
 
     if payload and payload.traffic then
@@ -826,14 +851,18 @@ RegisterNetEvent(TSIV.Events.permissions, function(payload)
 
     if not permissions then
         root = nil
+        if TSIV.Menu.IsOpen() then TSIV.Menu.Close() end
+        return
+    end
+
+    if TSIV.Menu.IsOpen() then
+        if sameAccess(previous, permissions) then return end
+        buildRoot()
+        TSIV.Menu.Open(root)
         return
     end
 
     buildRoot()
-
-    if TSIV.Menu.IsOpen() then
-        TSIV.Menu.Open(root)
-    end
 end)
 
 local function askForPermissions()

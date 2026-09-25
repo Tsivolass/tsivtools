@@ -137,6 +137,9 @@ end
 function Aimbot.Check(src, victim, aimX, aimY, aimZ, weapon)
     if not active() then return end
 
+    local shooter = GetPlayerPed(src)
+    if shooter == 0 or GetVehiclePedIsIn(shooter, false) ~= 0 then return end
+
     local report = reports[src]
     if not report or (GetGameTimer() - report.at) > (rules.maxReportAgeMs or 900) then
         Aimbot.Missing(src)
@@ -146,9 +149,6 @@ function Aimbot.Check(src, victim, aimX, aimY, aimZ, weapon)
     missing[src] = 0
 
     if report.pad and rules.controller == 'skip' then return end
-
-    local shooter = GetPlayerPed(src)
-    if not shooter or shooter == 0 then return end
 
     local origin = GetEntityCoords(shooter)
     if not origin then return end

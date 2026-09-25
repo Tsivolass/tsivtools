@@ -10,9 +10,17 @@ local function fileStore()
     return TSIV.Storage.Get('garages')
 end
 
+local function modelOf(props)
+    if type(props) == 'string' then
+        local ok, decoded = pcall(json.decode, props)
+        props = ok and decoded or nil
+    end
+    return type(props) == 'table' and props.modelName or 'unknown'
+end
+
 local function generatePlate()
-    local prefix = Config.garage.platePrefix or ''
-    local length = math.max(#prefix + 1, math.min(Config.garage.plateLength or 8, 8))
+    local prefix = Config.garage.platePrefix:sub(1, 7)
+    local length = math.max(#prefix + 1, math.min(Config.garage.plateLength, 8))
     local chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local plate = prefix
     for _ = 1, length - #prefix do
@@ -45,7 +53,8 @@ local function uniquePlate()
 end
 
 function Garage.Give(identifier, model, plate, props)
-    plate = plate and TSIV.SafeString(plate, 8):upper() or uniquePlate()
+    plate = TSIV.SafeString(plate, 8):upper()
+    if plate == '' then plate = uniquePlate() end
     model = TSIV.SafeString(model, 32):lower()
     if model == '' then return nil, 'no model given' end
     if plateExists(plate) then return nil, ('plate %s already exists'):format(plate) end
@@ -101,7 +110,7 @@ function Garage.Remove(identifier, plate)
         TSIV.Storage.Execute(([[DELETE FROM `%s` WHERE `%s` = ? AND `%s` = ?]])
             :format(Config.garage.table, Config.garage.ownerColumn, Config.garage.plateColumn),
             { identifier, plate })
-        return { plate = plate, model = 'unknown' }
+        return { plate = plate, model = modelOf(row[Config.garage.propsColumn]) }
     end
 
     local store = fileStore()
@@ -125,14 +134,9 @@ function Garage.List(identifier)
             :format(Config.garage.table, Config.garage.ownerColumn), { identifier }) or {}
         local out = {}
         for _, row in ipairs(rows) do
-            local props = row[Config.garage.propsColumn]
-            if type(props) == 'string' then
-                local ok, decoded = pcall(json.decode, props)
-                props = ok and decoded or {}
-            end
             out[#out + 1] = {
                 plate = row[Config.garage.plateColumn],
-                model = (props and props.modelName) or 'unknown',
+                model = modelOf(row[Config.garage.propsColumn]),
                 stored = row.stored,
             }
         end

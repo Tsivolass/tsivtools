@@ -364,7 +364,8 @@ function Detections.CheckGodmode(src, victims, weapon)
 
     for _, victim in ipairs(victims) do
         if victim ~= src and not pending[victim] then
-            if not (rules.skipExempt and isExempt(victim)) and sessionAge(victim) >= (rules.joinGrace or 0) then
+            local allowed = (rules.skipExempt and isExempt(victim)) or TSIV.Can(victim, 'self.godmode')
+            if not allowed and sessionAge(victim) >= (rules.joinGrace or 0) then
                 local ped = GetPlayerPed(victim)
                 local before, health = vitality(ped)
 

@@ -27,7 +27,11 @@ local function remember(src)
     entry.currentName = TSIV.GetName(src)
     entry.currentId = src
     entry.identifiers = ids
-    entry.names[#entry.names + 1] = entry.currentName
+    local known = false
+    for _, name in ipairs(entry.names) do
+        if name == entry.currentName then known = true break end
+    end
+    if not known then entry.names[#entry.names + 1] = entry.currentName end
     if #entry.names > 20 then table.remove(entry.names, 1) end
     entry.joins[#entry.joins + 1] = entry.lastSeen
     if #entry.joins > 30 then table.remove(entry.joins, 1) end
@@ -55,14 +59,38 @@ local function logEntries(limit)
     return TSIV.Logs.Search('', math.min(limit or 100, 100), 'all')
 end
 
+local kindWords = {
+    { 'injection',       { 'stopped answering', 'not answering' } },
+    { 'aim',             { 'aim', 'snap', 'crosshair' } },
+    { 'vehicle abuse',   { 'vehicle' } },
+    { 'entity abuse',    { 'prop', 'ped spawn' } },
+    { 'explosion abuse', { 'explosion' } },
+}
+
+local function kindOf(text)
+    text = text:lower()
+    for _, entry in ipairs(kindWords) do
+        for _, word in ipairs(entry[2]) do
+            if text:find(word, 1, true) then return entry[1] end
+        end
+    end
+    return 'event abuse'
+end
+
+local function reasonOf(entry)
+    local data = entry.data
+    if type(data) == 'string' then
+        local ok, decoded = pcall(json.decode, data)
+        data = ok and decoded or nil
+    end
+    return type(data) == 'table' and type(data.reason) == 'string' and data.reason or nil
+end
+
 local function detection(entry)
     if entry.category ~= 'anticheat' and entry.category ~= 'props' then return nil end
     local severity = severityByCategory[entry.category] or 'medium'
     local message = entry.message or ''
-    local kind = 'event abuse'
-    if message:lower():find('vehicle') then kind = 'vehicle abuse'
-    elseif message:lower():find('prop') then kind = 'entity abuse'
-    elseif message:lower():find('explosion') then kind = 'explosion abuse' end
+    local kind = kindOf(reasonOf(entry) or message)
     return {
         id = entry.id, at = entry.at, source = entry.target,
         name = entry.targetName ~= '' and entry.targetName or 'Unknown player',
