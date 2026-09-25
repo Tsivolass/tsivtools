@@ -86,7 +86,7 @@ function TSIV.RaycastEntity(distance)
 
     local to = from + direction * (distance or 25.0)
 
-    local ray = StartShapeTestRay(from.x, from.y, from.z, to.x, to.y, to.z, -1, ped, 0)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, -1, ped, 0)
     local _, hit, coords, _, entity = GetShapeTestResult(ray)
 
     if hit == 1 and entity and entity ~= 0 then
@@ -136,9 +136,17 @@ end
 
 local noclipSpeed = 1.0
 
+local function release(entity)
+    if entity and DoesEntityExist(entity) then
+        FreezeEntityPosition(entity, false)
+        SetEntityCollision(entity, true, true)
+    end
+end
+
 local function noclipThread()
     CreateThread(function()
         local ped = PlayerPedId()
+        local vehicle = nil
         SetEntityInvincible(ped, true)
         SetEntityVisible(ped, not TSIV.State.invisible, false)
         FreezeEntityPosition(ped, true)
@@ -147,8 +155,13 @@ local function noclipThread()
         while TSIV.State.noclip do
             ped = PlayerPedId()
             local entity = ped
-            if IsPedInAnyVehicle(ped, false) then
-                entity = GetVehiclePedIsIn(ped, false)
+            local current = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or nil
+            if current ~= vehicle then
+                release(vehicle)
+                vehicle = current
+            end
+            if vehicle then
+                entity = vehicle
                 FreezeEntityPosition(entity, true)
                 SetEntityCollision(entity, false, false)
             end
@@ -174,7 +187,7 @@ local function noclipThread()
             if IsControlPressed(0, 44) then move = move + vector3(0.0, 0.0, 1.0) end
             if IsControlPressed(0, 38) then move = move - vector3(0.0, 0.0, 1.0) end
 
-            local speed = noclipSpeed
+            local speed = noclipSpeed * GetFrameTime() * 60.0
             if IsControlPressed(0, 21) then speed = speed * 4.0 end
             if IsControlPressed(0, 36) then speed = speed * 0.25 end
 
@@ -190,11 +203,8 @@ local function noclipThread()
         end
 
         ped = PlayerPedId()
-        local entity = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
-        FreezeEntityPosition(entity, false)
-        SetEntityCollision(entity, true, true)
-        FreezeEntityPosition(ped, false)
-        SetEntityCollision(ped, true, true)
+        release(vehicle)
+        release(ped)
         SetEntityInvincible(ped, TSIV.State.god)
         SetEntityVisible(ped, not TSIV.State.invisible, false)
 
@@ -351,7 +361,7 @@ function TSIV.TeleportToMarker()
     DoScreenFadeOut(200)
     while not IsScreenFadedOut() do Wait(0) end
 
-    local groundZ = 0.0
+    local groundZ = nil
     for height = 0, 1000, 25 do
         SetEntityCoordsNoOffset(entity, coords.x, coords.y, height + 0.0, false, false, false)
         RequestCollisionAtCoord(coords.x, coords.y, height + 0.0)
@@ -361,6 +371,10 @@ function TSIV.TeleportToMarker()
             groundZ = z
             break
         end
+    end
+
+    if not groundZ then
+        groundZ = GetHeightmapTopZForPosition(coords.x, coords.y)
     end
 
     SetEntityCoordsNoOffset(entity, coords.x, coords.y, groundZ + 1.0, false, false, false)

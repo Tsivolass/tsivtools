@@ -146,12 +146,9 @@ local function buildSelf(menu)
 
     if can('self.tpsaved') and #Config.Teleports > 0 then
         local teleports = TSIV.Menu.Create('Teleports', 'from config.lua')
-        for _, entry in ipairs(Config.Teleports) do
+        for index, entry in ipairs(Config.Teleports) do
             teleports:Button(entry.label, ('%.0f, %.0f, %.0f'):format(entry.coords.x, entry.coords.y, entry.coords.z), function()
-                TSIV.Action('self.teleport', {
-                    saved = true,
-                    x = entry.coords.x, y = entry.coords.y, z = entry.coords.z,
-                })
+                TSIV.Action('self.teleport', { saved = index })
             end)
         end
         menu:Attach('Saved locations', 'Known locations across all fiveM servers', teleports)
@@ -624,20 +621,35 @@ local function buildRoot()
 end
 
 
+local function sameAccess(a, b)
+    if not a or not b or a.rank ~= b.rank then return false end
+    for key in pairs(a.granted) do
+        if not b.granted[key] then return false end
+    end
+    for key in pairs(b.granted) do
+        if not a.granted[key] then return false end
+    end
+    return true
+end
+
 RegisterNetEvent(TSIV.Events.permissions, function(payload)
+    local previous = permissions
     permissions = payload
 
     if not permissions then
         root = nil
+        if TSIV.Menu.IsOpen() then TSIV.Menu.Close() end
+        return
+    end
+
+    if TSIV.Menu.IsOpen() then
+        if sameAccess(previous, permissions) then return end
+        buildRoot()
+        TSIV.Menu.Open(root)
         return
     end
 
     buildRoot()
-
-
-    if TSIV.Menu.IsOpen() then
-        TSIV.Menu.Open(root)
-    end
 end)
 
 local function askForPermissions()

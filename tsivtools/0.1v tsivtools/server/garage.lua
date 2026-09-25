@@ -1,17 +1,3 @@
---[[
-    tsivtools - garage
-
-    Give a vehicle to a player's garage, take one away, and list what somebody
-    owns. Two backends, chosen with Config.Garage.mode:
-
-      file  - tsivtools/data/garages.json, keyed by identifier. Self contained,
-              which is what you want while testing, but a framework's own
-              garage script will not see it.
-      mysql - reads and writes your real owned_vehicles table, so an ESX or QB
-              garage script picks the vehicle up straight away. Column names
-              are configurable because no two schemas agree.
-]]
-
 TSIV.Garage = {}
 
 local Garage = TSIV.Garage
@@ -24,10 +10,17 @@ local function fileStore()
     return TSIV.Storage.Get('garages')
 end
 
---- Random plate in the configured format. GTA plates are 8 characters.
+local function modelOf(props)
+    if type(props) == 'string' then
+        local ok, decoded = pcall(json.decode, props)
+        props = ok and decoded or nil
+    end
+    return type(props) == 'table' and props.modelName or 'unknown'
+end
+
 local function generatePlate()
-    local prefix = Config.Garage.platePrefix or ''
-    local length = math.max(#prefix + 1, math.min(Config.Garage.plateLength or 8, 8))
+    local prefix = Config.Garage.platePrefix:sub(1, 7)
+    local length = math.max(#prefix + 1, math.min(Config.Garage.plateLength, 8))
     local chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local plate = prefix
     for _ = 1, length - #prefix do
@@ -37,7 +30,6 @@ local function generatePlate()
     return plate
 end
 
---- Is this plate already taken?
 local function plateExists(plate)
     if usingMysql() then
         local found = TSIV.Storage.Scalar(([[SELECT `%s` FROM `%s` WHERE `%s` = ? LIMIT 1]])
@@ -57,15 +49,12 @@ local function uniquePlate()
         local plate = generatePlate()
         if not plateExists(plate) then return plate end
     end
-    -- Astronomically unlikely, but better than handing out a duplicate.
     return generatePlate() .. tostring(math.random(9))
 end
 
---- Add a vehicle to an identifier's garage.
---- props may be a full vehicle-properties table from a framework, or nil, in
---- which case a minimal one is built from the model.
 function Garage.Give(identifier, model, plate, props)
-    plate = plate and TSIV.SafeString(plate, 8):upper() or uniquePlate()
+    plate = TSIV.SafeString(plate, 8):upper()
+    if plate == '' then plate = uniquePlate() end
     model = TSIV.SafeString(model, 32):lower()
     if model == '' then return nil, 'no model given' end
     if plateExists(plate) then return nil, ('plate %s already exists'):format(plate) end
@@ -109,7 +98,6 @@ function Garage.Give(identifier, model, plate, props)
     return plate
 end
 
---- Remove a vehicle by plate. Returns the removed entry, or nil.
 function Garage.Remove(identifier, plate)
     plate = TSIV.SafeString(plate, 8):upper()
     if plate == '' then return nil end
@@ -122,7 +110,7 @@ function Garage.Remove(identifier, plate)
         TSIV.Storage.Execute(([[DELETE FROM `%s` WHERE `%s` = ? AND `%s` = ?]])
             :format(Config.Garage.table, Config.Garage.ownerColumn, Config.Garage.plateColumn),
             { identifier, plate })
-        return { plate = plate, model = 'unknown' }
+        return { plate = plate, model = modelOf(row[Config.Garage.propsColumn]) }
     end
 
     local store = fileStore()
@@ -140,21 +128,15 @@ function Garage.Remove(identifier, plate)
     return nil
 end
 
---- List an identifier's vehicles.
 function Garage.List(identifier)
     if usingMysql() then
         local rows = TSIV.Storage.Query(([[SELECT * FROM `%s` WHERE `%s` = ?]])
             :format(Config.Garage.table, Config.Garage.ownerColumn), { identifier }) or {}
         local out = {}
         for _, row in ipairs(rows) do
-            local props = row[Config.Garage.propsColumn]
-            if type(props) == 'string' then
-                local ok, decoded = pcall(json.decode, props)
-                props = ok and decoded or {}
-            end
             out[#out + 1] = {
                 plate = row[Config.Garage.plateColumn],
-                model = (props and props.modelName) or 'unknown',
+                model = modelOf(row[Config.Garage.propsColumn]),
                 stored = row.stored,
             }
         end
@@ -163,13 +145,6 @@ function Garage.List(identifier)
 
     return fileStore()[identifier] or {}
 end
-
--- ---------------------------------------------------------------------------
--- Identifier resolution
--- ---------------------------------------------------------------------------
--- The menu options take a server id, because that is what staff have in front
--- of them. Everything is stored against an identifier, so ids are resolved
--- here. An identifier can also be typed directly, for offline players.
 
 local function resolveIdentifier(value)
     local target = TSIV.ResolveTarget(value)
@@ -183,10 +158,6 @@ local function resolveIdentifier(value)
     end
     return nil
 end
-
--- ---------------------------------------------------------------------------
--- Menu hooks
--- ---------------------------------------------------------------------------
 
 TSIV.RegisterRequest('garage.lookup', 'garage.lookup', function(src, payload)
     local identifier, name = resolveIdentifier(payload.target)

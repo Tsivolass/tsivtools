@@ -9,7 +9,6 @@ local function report(kind, detail)
     TriggerServerEvent(TSIV.Events.report, kind, detail)
 end
 
-
 local lastCoords = nil
 local lastCheck = 0
 
@@ -60,8 +59,6 @@ local function weaponCheck(ped)
     end
 end
 
-
-
 CreateThread(function()
     if not Config.AntiCheat.enabled or not settings.enabled then return end
 
@@ -71,7 +68,11 @@ CreateThread(function()
         Wait((settings.interval or 5) * 1000)
 
         local ped = PlayerPedId()
-        if DoesEntityExist(ped) and not IsEntityDead(ped) then
+        local state = TSIV.State
+        if state.noclip or state.spectating then
+            lastCoords = nil
+            lastCheck = 0
+        elseif DoesEntityExist(ped) and not IsEntityDead(ped) then
             if settings.speedCheck then speedCheck(ped) end
             if settings.healthCheck then healthCheck(ped) end
             if settings.weaponCheck then weaponCheck(ped) end

@@ -73,39 +73,56 @@ function Storage.Flush(name)
     end
 end
 
+local ready = false
+
+function Storage.WaitReady()
+    local waited = 0
+    while not ready and waited < 15000 do
+        Wait(100)
+        waited = waited + 100
+    end
+    return ready
+end
+
 function Storage.UsingMysql()
+    if not ready and coroutine.isyieldable() then Storage.WaitReady() end
     return useMysql
 end
 
 function Storage.Query(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.query.await(query, params or {})
 end
 
 function Storage.Single(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.single.await(query, params or {})
 end
 
 function Storage.Scalar(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.scalar.await(query, params or {})
 end
 
 function Storage.Execute(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.update.await(query, params or {})
 end
 
 function Storage.Insert(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.insert.await(query, params or {})
+end
+
+function Storage.InsertLater(query, params)
+    if not Storage.UsingMysql() then return end
+    MySQL.insert(query, params or {})
 end
 
 local function ensureSchema()
     if not useMysql then return end
 
-    Storage.Execute(([[
+    MySQL.update.await(([[
         CREATE TABLE IF NOT EXISTS `%s` (
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `identifier` VARCHAR(64) NOT NULL,
@@ -121,7 +138,7 @@ local function ensureSchema()
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]]):format(Config.Database.banTable))
 
-    Storage.Execute(([[
+    MySQL.update.await(([[
         CREATE TABLE IF NOT EXISTS `%s` (
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `category` VARCHAR(32) NOT NULL,
@@ -159,4 +176,6 @@ CreateThread(function()
     else
         print(('%sstorage: file (tsivtools/data)'):format(Config.ConsolePrefix))
     end
+
+    ready = true
 end)

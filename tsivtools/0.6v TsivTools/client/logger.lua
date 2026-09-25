@@ -3,7 +3,7 @@ function TSIV.Print(message)
 end
 
 function TSIV.PrintBlock(title, lines)
-
+    local rule = ('='):rep(72)
     print('TsivTools :))')
     print(rule)
     print(Config.ConsolePrefix .. tostring(title))
@@ -106,8 +106,15 @@ RegisterNetEvent(TSIV.Events.notify, function(message, kind)
     TSIV.Notify(message, kind)
 end)
 
+local prefix = '^' .. stripColours(Config.Prefix):gsub('(%W)', '%%%1')
+
 RegisterNetEvent(TSIV.Events.alert, function(message)
-    if message then TSIV.Print(stripColours(message)) end
+    if message then
+        local plain = stripColours(message)
+        TSIV.Print(plain)
+        TSIV.Notify(plain:gsub(prefix, ''), 'info')
+        return
+    end
     TSIV.Notify('anticheat alert !! check console :)', 'warn')
     PlaySoundFrontend(-1, 'Event_Start_Text', 'GTAO_FM_Events_Soundset', true)
 end)

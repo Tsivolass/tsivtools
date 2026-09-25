@@ -1,13 +1,3 @@
---[[
-    tsivtools - client checks
-
-    Cheap sanity checks that run on the player's own machine and report back.
-    A client can lie about all of this, so nothing here bans anybody by itself:
-    every result arrives at the server as an alert for staff to look at.
-
-    Turn the whole thing off with Config.AntiCheat.client.enabled = false.
-]]
-
 local settings = Config.AntiCheat.client
 local blacklistedWeapons = {}
 
@@ -18,10 +8,6 @@ end
 local function report(kind, detail)
     TriggerServerEvent(TSIV.Events.report, kind, detail)
 end
-
--- ---------------------------------------------------------------------------
--- Checks
--- ---------------------------------------------------------------------------
 
 local lastCoords = nil
 local lastCheck = 0
@@ -36,8 +22,6 @@ local function speedCheck(ped)
             local travelled = #(coords - lastCoords)
             local speed = travelled / elapsed
 
-            -- Only meaningful on foot and on the ground. A vehicle, a fall, a
-            -- parachute or a legitimate teleport all produce large numbers.
             local onFoot = not IsPedInAnyVehicle(ped, true)
                 and not IsPedFalling(ped)
                 and not IsPedInParachuteFreeFall(ped)
@@ -75,35 +59,30 @@ local function weaponCheck(ped)
     end
 end
 
--- ---------------------------------------------------------------------------
--- Loop
--- ---------------------------------------------------------------------------
-
 CreateThread(function()
     if not Config.AntiCheat.enabled or not settings.enabled then return end
 
-    -- Give the player time to spawn in before the first check, otherwise the
-    -- initial spawn teleport reads as a speed violation.
     Wait(30000)
 
     while true do
         Wait((settings.interval or 5) * 1000)
 
         local ped = PlayerPedId()
-        if DoesEntityExist(ped) and not IsEntityDead(ped) then
+        local state = TSIV.State
+        if state.noclip or state.spectating then
+            lastCoords = nil
+            lastCheck = 0
+        elseif DoesEntityExist(ped) and not IsEntityDead(ped) then
             if settings.speedCheck then speedCheck(ped) end
             if settings.healthCheck then healthCheck(ped) end
             if settings.weaponCheck then weaponCheck(ped) end
         else
-            -- Reset the speed baseline while dead, so the respawn does not
-            -- count as movement.
             lastCoords = nil
             lastCheck = 0
         end
     end
 end)
 
--- A teleport performed by tsivtools itself must not trip the speed check.
 AddEventHandler('tsivtools:teleported', function()
     lastCoords = nil
     lastCheck = 0

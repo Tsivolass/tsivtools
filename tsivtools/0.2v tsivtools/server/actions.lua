@@ -244,8 +244,6 @@ TSIV.RegisterAction('player.setrank', 'player.setrank', function(src, payload)
     TSIV.Notify(src, ('Set %s to %s'):format(TSIV.GetName(target), rank), 'success')
     TSIV.Notify(target, ('Your new rank: %s'):format(rank), 'info')
 
-)
-    end
     Logs.Staff(src, ('Set the rank of %s to %s'):format(TSIV.Describe(target), rank), identifier,
         { rank = rank, identifier = identifier })
 
@@ -272,18 +270,26 @@ TSIV.RegisterAction('self.state', nil, function(src, payload)
 end)
 
 TSIV.RegisterAction('self.teleport', nil, function(src, payload)
-    local permission = payload.saved and 'self.tpsaved' or 'self.tpcoords'
-    if not TSIV.Can(src, permission) then
-        TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
-        return
-    end
+    local x, y, z
+    local saved = payload.saved ~= nil and Config.Teleports[TSIV.ToInt(payload.saved, 1)]
 
-    local x = TSIV.ToNumber(payload.x)
-    local y = TSIV.ToNumber(payload.y)
-    local z = TSIV.ToNumber(payload.z)
-    if not x or not y or not z then
-        TSIV.Notify(src, 'Those arent valid coordinates !', 'error')
-        return
+    if payload.saved ~= nil then
+        if not saved then return end
+        if not TSIV.Can(src, 'self.tpsaved') then
+            TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
+            return
+        end
+        x, y, z = saved.coords.x, saved.coords.y, saved.coords.z
+    else
+        if not TSIV.Can(src, 'self.tpcoords') then
+            TSIV.Notify(src, 'You dont have permission to do that !!', 'error')
+            return
+        end
+        x, y, z = TSIV.ToNumber(payload.x), TSIV.ToNumber(payload.y), TSIV.ToNumber(payload.z)
+        if not x or not y or not z then
+            TSIV.Notify(src, 'Those arent valid coordinates !', 'error')
+            return
+        end
     end
 
     run(src, 'teleport', { x = x, y = y, z = z })
@@ -467,6 +473,12 @@ TSIV.RegisterAction('entity.deleteNearest', nil, function(src, payload)
         return
     end
 
+    local wanted = payload.kind == 'vehicles' and 2 or 3
+    if GetEntityType(entity) ~= wanted or playerPedSet()[entity] then
+        TSIV.Notify(src, 'You can only delete props and vehicles with this !', 'error')
+        return
+    end
+
     local origin = pedCoords(src)
     local coords = GetEntityCoords(entity)
     if origin and distance(origin, coords) > 50.0 then
@@ -489,7 +501,7 @@ TSIV.RegisterAction('prop.toggleproplog', 'prop.toggleproplog', function(src, pa
     TSIV.Notify(src, ('Prop spawn logging is now %s'):format(state and 'ON' or 'OFF'), 'success')
     Logs.Staff(src, ('Turned prop spawn logging %s'):format(state and 'on' or 'off'))
     TSIV.StaffBroadcast(Config.AntiCheat.propLogRank, ('%s%s turned prop spawn logging %s'):format(
-        TSIV.GetName(src), Config.Prefix, state and 'ON' or 'OFF'))
+        Config.Prefix, TSIV.GetName(src), state and 'ON' or 'OFF'))
 
     -- Everyone who can see the toggle needs their menu row updating.
     for _, player in ipairs(GetPlayers()) do
@@ -532,24 +544,28 @@ TSIV.RegisterRequest('staff.online', 'staff.online', function(src)
     return { title = 'TsivTools // online staff', lines = lines, staff = staff }
 end)
 
-TSIV.RegisterAction('staff.chat', 'staff.chat', function(src, payload)
-    local message = TSIV.SafeString(payload.message, 200)
+local function staffChat(src, text)
+    local message = TSIV.SafeString(text, 200)
     if message == '' then return end
 
-    local rank = TSIV.GetRank(src)
-    local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(TSIV.GetName(src), TSIV.RankLabel(rank), message)
+    local name = src == 0 and 'console' or TSIV.GetName(src)
+    local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(name, TSIV.RankLabel(TSIV.GetRank(src)), message)
 
     for _, member in ipairs(TSIV.GetStaff('mod')) do
         TriggerClientEvent('chat:addMessage', member.source, { args = { line }, multiline = true })
     end
 
-    print(('%s[staff chat] %s: %s'):format(Config.ConsolePrefix, TSIV.GetName(src), message))
+    print(('%s[staff chat] %s: %s'):format(Config.ConsolePrefix, name, message))
     Logs.Write({
         category = 'chat',
         message = ('[staff chat] %s'):format(message),
-        actor = TSIV.GetPrimaryIdentifier(src),
-        actorName = TSIV.GetName(src),
+        actor = src == 0 and 'console' or TSIV.GetPrimaryIdentifier(src),
+        actorName = name,
     })
+end
+
+TSIV.RegisterAction('staff.chat', 'staff.chat', function(src, payload)
+    staffChat(src, payload.message)
 end)
 
 TSIV.RegisterAction('staff.announce', 'staff.announce', function(src, payload)
@@ -628,7 +644,11 @@ end, false)
 
 RegisterCommand('revive', function(src, args)
     if not commandPermission(src, 'player.revive') then return end
-    local target = TSIV.ResolveTarget(args[1]) or src
+    local target = TSIV.ResolveTarget(args[1]) or (src ~= 0 and src or nil)
+    if not target then
+        TSIV.Notify(src, 'usage: /revive <server id>', 'error')
+        return
+    end
     run(target, 'revive', {})
     TSIV.Notify(src, ('Revived %s'):format(TSIV.GetName(target)), 'success')
     Logs.Staff(src, ('Revived %s'):format(TSIV.Describe(target)), target)
@@ -670,16 +690,5 @@ end, false)
 
 RegisterCommand('staffchat', function(src, args)
     if not commandPermission(src, 'staff.chat') then return end
-    local message = table.concat(args, ' ')
-    if message == '' then return end
-    TriggerEvent('__tsivtools_staffchat', src, message)
+    staffChat(src, table.concat(args, ' '))
 end, false)
-
-AddEventHandler('__tsivtools_staffchat', function(src, message)
-    message = TSIV.SafeString(message, 200)
-    local rank = TSIV.GetRank(src)
-    local line = ('^5[staff]^7 ^3%s^7 (%s): %s'):format(TSIV.GetName(src), TSIV.RankLabel(rank), message)
-    for _, member in ipairs(TSIV.GetStaff('mod')) do
-        TriggerClientEvent('chat:addMessage', member.source, { args = { line }, multiline = true })
-    end
-end)

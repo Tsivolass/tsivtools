@@ -34,7 +34,6 @@ function TSIV.Ranks()
     return ranksSorted
 end
 
-lse).
 function TSIV.PermissionLevel(key)
     local required = Config.Permissions[key]
     if required == false then return nil end

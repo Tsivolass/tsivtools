@@ -219,6 +219,11 @@ function Menu.Refresh()
     if index > #current.items then
         index = math.max(1, #current.items)
     end
+    local maxVisible = Config.MenuMaxVisible
+    if offset > math.max(0, #current.items - maxVisible) then
+        offset = math.max(0, #current.items - maxVisible)
+    end
+    if index <= offset then offset = index - 1 end
 end
 
 local function push(menu)
@@ -479,4 +484,92 @@ RegisterNUICallback('inputCancel', function(_, cb)
     SetNuiFocus(false, false)
     finish(nil)
     cb('ok')
+end)
+
+local function nuiInput(title, default, maxLength, numeric)
+    local request = { done = false, value = nil }
+    pending = request
+
+    Menu.LockInput(true)
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'openInput',
+        title = title or 'Enter a value',
+        default = default or '',
+        maxLength = maxLength or 64,
+        numeric = numeric and true or false,
+    })
+
+    local deadline = GetGameTimer() + 120000
+    while not request.done and GetGameTimer() < deadline do
+        Wait(50)
+    end
+
+    local result = request.value
+    local timedOut = not request.done
+    if pending == request then pending = nil end
+
+    if timedOut then
+        SendNUIMessage({ action = 'closeInput' })
+    end
+
+    SetNuiFocus(false, false)
+    Menu.LockInput(false)
+
+    if timedOut then
+        TSIV.Notify('The text box timed out !', 'error')
+        return nil
+    end
+
+    return result
+end
+
+local function nativeInput(title, default, maxLength)
+    Menu.LockInput(true)
+
+    AddTextEntry('TSIVTOOLS_INPUT', title or 'Enter a value')
+    DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', (maxLength or 64) + 1)
+
+    local status = UpdateOnscreenKeyboard()
+    local deadline = GetGameTimer() + 120000
+    while status ~= 1 and status ~= 2 and GetGameTimer() < deadline do
+        DisableAllControlActions(0)
+        Wait(0)
+        status = UpdateOnscreenKeyboard()
+    end
+
+    Menu.LockInput(false)
+
+    if status ~= 1 then
+        if status == 0 then CancelOnscreenKeyboard() end
+        return nil
+    end
+
+    local result = GetOnscreenKeyboardResult()
+    Wait(50)
+    return result
+end
+
+function TSIV.Input(title, default, maxLength)
+    if Config.UseNuiInput then
+        return nuiInput(title, default, maxLength, false)
+    end
+    return nativeInput(title, default, maxLength)
+end
+
+function TSIV.InputNumber(title, default, maxLength)
+    local value
+    if Config.UseNuiInput then
+        value = nuiInput(title, default and tostring(default) or '', maxLength or 10, true)
+    else
+        value = nativeInput(title, default and tostring(default) or '', maxLength or 10)
+    end
+
+    if value == nil then return nil end
+    return tonumber((value:gsub('%s', '')))
+end
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= TSIV.resource then return end
+    SetNuiFocus(false, false)
 end)

@@ -4,7 +4,7 @@ function TSIV.Print(message)
 end
 
 function TSIV.PrintBlock(title, lines)
-
+    local rule = ('='):rep(72)
     print('TsivTools :))')
     print(rule)
     print(Config.ConsolePrefix .. tostring(title))
@@ -54,6 +54,7 @@ end)
 
 RegisterNetEvent(TSIV.Events.alert, function(message)
     TSIV.Chat(message)
+    if not message:find('[anticheat]', 1, true) and not message:find('[client check]', 1, true) then return end
     TSIV.Notify('anticheat alert !! check console and chat :))', 'warn')
     PlaySoundFrontend(-1, 'Event_Start_Text', 'GTAO_FM_Events_Soundset', true)
 end)

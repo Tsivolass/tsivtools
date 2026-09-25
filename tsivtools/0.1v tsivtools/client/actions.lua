@@ -1,31 +1,12 @@
---[[
-    tsivtools - client actions
-
-    Two halves:
-
-      1. The request helper, which lets the menu ask the server for data and
-         wait for the answer.
-      2. The fixed list of commands the server may ask this client to run. The
-         server sends a NAME from this table, never code, so there is no path
-         from a server event to arbitrary execution on a player's machine.
-]]
-
 TSIV.Actions = {}
 
 local pendingRequests = {}
 local nextRequestId = 0
 
--- ---------------------------------------------------------------------------
--- Talking to the server
--- ---------------------------------------------------------------------------
-
---- Fire and forget.
 function TSIV.Action(name, payload)
     TriggerServerEvent(TSIV.Events.action, name, payload or {})
 end
 
---- Ask the server for something and block this coroutine until it answers.
---- Returns nil on timeout or when the server refused.
 function TSIV.Request(name, payload, timeout)
     nextRequestId = nextRequestId + 1
     local requestId = nextRequestId
@@ -58,7 +39,6 @@ RegisterNetEvent(TSIV.Events.response, function(requestId, result)
     entry.done = true
 end)
 
---- Show a server-built block of lines in F8 and say so on screen.
 function TSIV.ShowBlock(block, emptyMessage)
     if not block then
         TSIV.Notify(emptyMessage or 'Nothing came back.', 'error')
@@ -68,10 +48,6 @@ function TSIV.ShowBlock(block, emptyMessage)
     TSIV.Notify('Printed to your F8 console.', 'success')
 end
 
--- ---------------------------------------------------------------------------
--- Local state
--- ---------------------------------------------------------------------------
-
 TSIV.State = {
     god = false,
     invisible = false,
@@ -79,10 +55,6 @@ TSIV.State = {
     spectating = nil,
     frozen = false,
 }
-
--- ---------------------------------------------------------------------------
--- Models
--- ---------------------------------------------------------------------------
 
 local function requestModel(model)
     local hash = type(model) == 'number' and model or GetHashKey(model)
@@ -101,12 +73,6 @@ local function requestModel(model)
     return hash
 end
 
--- ---------------------------------------------------------------------------
--- Entity helpers
--- ---------------------------------------------------------------------------
-
---- The entity the player is aiming at, or the closest one in front of them.
---- Used by "delete the prop I am looking at".
 function TSIV.RaycastEntity(distance)
     local ped = PlayerPedId()
     local from = GetGameplayCamCoord()
@@ -120,7 +86,7 @@ function TSIV.RaycastEntity(distance)
 
     local to = from + direction * (distance or 25.0)
 
-    local ray = StartShapeTestRay(from.x, from.y, from.z, to.x, to.y, to.z, -1, ped, 0)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, -1, ped, 0)
     local _, hit, coords, _, entity = GetShapeTestResult(ray)
 
     if hit == 1 and entity and entity ~= 0 then
@@ -129,7 +95,6 @@ function TSIV.RaycastEntity(distance)
     return nil
 end
 
---- Closest object to the player, ignoring anything further than maxDistance.
 function TSIV.ClosestObject(maxDistance)
     local origin = GetEntityCoords(PlayerPedId())
     local closest, closestDistance = nil, maxDistance or 25.0
@@ -150,8 +115,6 @@ function TSIV.ClosestObject(maxDistance)
     return closest
 end
 
---- Hand an entity to the server by network id. The server is what actually
---- deletes it, after checking the caller is near it.
 function TSIV.DeleteEntityViaServer(entity, kind)
     if not entity or not DoesEntityExist(entity) then
         TSIV.Notify('Nothing there to delete.', 'error')
@@ -159,9 +122,6 @@ function TSIV.DeleteEntityViaServer(entity, kind)
     end
 
     if not NetworkGetEntityIsNetworked(entity) then
-        -- A purely local entity has no network id, so the server cannot see
-        -- it. Those are map objects or client-side props; deleting them here
-        -- only affects this player, which is still what they asked for.
         SetEntityAsMissionEntity(entity, true, true)
         DeleteEntity(entity)
         TSIV.Notify('Deleted a local entity (it was not networked).', 'success')
@@ -174,15 +134,19 @@ function TSIV.DeleteEntityViaServer(entity, kind)
     })
 end
 
--- ---------------------------------------------------------------------------
--- Noclip
--- ---------------------------------------------------------------------------
-
 local noclipSpeed = 1.0
+
+local function release(entity)
+    if entity and DoesEntityExist(entity) then
+        FreezeEntityPosition(entity, false)
+        SetEntityCollision(entity, true, true)
+    end
+end
 
 local function noclipThread()
     CreateThread(function()
         local ped = PlayerPedId()
+        local vehicle = nil
         SetEntityInvincible(ped, true)
         SetEntityVisible(ped, not TSIV.State.invisible, false)
         FreezeEntityPosition(ped, true)
@@ -191,8 +155,13 @@ local function noclipThread()
         while TSIV.State.noclip do
             ped = PlayerPedId()
             local entity = ped
-            if IsPedInAnyVehicle(ped, false) then
-                entity = GetVehiclePedIsIn(ped, false)
+            local current = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or nil
+            if current ~= vehicle then
+                release(vehicle)
+                vehicle = current
+            end
+            if vehicle then
+                entity = vehicle
                 FreezeEntityPosition(entity, true)
                 SetEntityCollision(entity, false, false)
             end
@@ -207,7 +176,6 @@ local function noclipThread()
 
             local move = vector3(0.0, 0.0, 0.0)
 
-            -- W / S / A / D, shift to go faster, control to go slower.
             if IsControlPressed(0, 32) then move = move + forward end
             if IsControlPressed(0, 33) then move = move - forward end
             if IsControlPressed(0, 34) then
@@ -216,10 +184,10 @@ local function noclipThread()
             if IsControlPressed(0, 35) then
                 move = move + vector3(forward.y, -forward.x, 0.0)
             end
-            if IsControlPressed(0, 44) then move = move + vector3(0.0, 0.0, 1.0) end  -- Q
-            if IsControlPressed(0, 38) then move = move - vector3(0.0, 0.0, 1.0) end  -- E
+            if IsControlPressed(0, 44) then move = move + vector3(0.0, 0.0, 1.0) end
+            if IsControlPressed(0, 38) then move = move - vector3(0.0, 0.0, 1.0) end
 
-            local speed = noclipSpeed
+            local speed = noclipSpeed * GetFrameTime() * 60.0
             if IsControlPressed(0, 21) then speed = speed * 4.0 end
             if IsControlPressed(0, 36) then speed = speed * 0.25 end
 
@@ -235,15 +203,11 @@ local function noclipThread()
         end
 
         ped = PlayerPedId()
-        local entity = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
-        FreezeEntityPosition(entity, false)
-        SetEntityCollision(entity, true, true)
-        FreezeEntityPosition(ped, false)
-        SetEntityCollision(ped, true, true)
+        release(vehicle)
+        release(ped)
         SetEntityInvincible(ped, TSIV.State.god)
         SetEntityVisible(ped, not TSIV.State.invisible, false)
 
-        -- Drop back to the ground rather than leaving the player in the air.
         local coords = GetEntityCoords(ped)
         local found, ground = GetGroundZFor_3dCoord(coords.x, coords.y, coords.z, false)
         if found then
@@ -262,10 +226,6 @@ function TSIV.SetNoclipSpeed(speed)
     noclipSpeed = speed
 end
 
--- ---------------------------------------------------------------------------
--- God mode and invisibility
--- ---------------------------------------------------------------------------
-
 function TSIV.ToggleGod(state)
     TSIV.State.god = state
     SetEntityInvincible(PlayerPedId(), state)
@@ -279,8 +239,6 @@ function TSIV.ToggleInvisible(state)
     TSIV.Action('self.state', { key = 'self.invisible', state = state })
 end
 
--- God mode has to be re-applied after a respawn, otherwise it silently stops
--- working the first time the player dies.
 CreateThread(function()
     while true do
         Wait(2000)
@@ -294,10 +252,6 @@ CreateThread(function()
         end
     end
 end)
-
--- ---------------------------------------------------------------------------
--- Spectating
--- ---------------------------------------------------------------------------
 
 local spectateReturn = nil
 
@@ -349,7 +303,6 @@ local function startSpectating(serverId, name)
         :format(name or serverId), 'info')
 end
 
--- Keep the camera on the target as they move around the map.
 CreateThread(function()
     while true do
         Wait(1000)
@@ -367,12 +320,6 @@ CreateThread(function()
     end
 end)
 
--- ---------------------------------------------------------------------------
--- Teleporting
--- ---------------------------------------------------------------------------
-
---- Teleport and wait for the collision around the destination to stream in, so
---- the player does not fall through the map on arrival.
 function TSIV.TeleportTo(x, y, z)
     local ped = PlayerPedId()
     local entity = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
@@ -390,7 +337,6 @@ function TSIV.TeleportTo(x, y, z)
         waited = waited + 50
     end
 
-    -- Drop to the ground if the z we were given is in the air.
     local found, ground = GetGroundZFor_3dCoord(x, y, z + 10.0, false)
     if found and math.abs(ground - z) < 50.0 then
         SetEntityCoordsNoOffset(entity, x, y, ground + 1.0, false, false, false)
@@ -409,14 +355,13 @@ function TSIV.TeleportToMarker()
 
     local coords = GetBlipInfoIdCoord(waypoint)
 
-    -- The waypoint blip has no height, so probe upwards for the ground.
     local ped = PlayerPedId()
     local entity = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
 
     DoScreenFadeOut(200)
     while not IsScreenFadedOut() do Wait(0) end
 
-    local groundZ = 0.0
+    local groundZ = nil
     for height = 0, 1000, 25 do
         SetEntityCoordsNoOffset(entity, coords.x, coords.y, height + 0.0, false, false, false)
         RequestCollisionAtCoord(coords.x, coords.y, height + 0.0)
@@ -428,15 +373,15 @@ function TSIV.TeleportToMarker()
         end
     end
 
+    if not groundZ then
+        groundZ = GetHeightmapTopZForPosition(coords.x, coords.y)
+    end
+
     SetEntityCoordsNoOffset(entity, coords.x, coords.y, groundZ + 1.0, false, false, false)
     DoScreenFadeIn(300)
     TriggerEvent('tsivtools:teleported')
     TSIV.Notify('Teleported to your waypoint.', 'success')
 end
-
--- ---------------------------------------------------------------------------
--- Vehicles
--- ---------------------------------------------------------------------------
 
 local function spawnVehicle(model, plate)
     local hash = requestModel(model)
@@ -469,17 +414,11 @@ local function currentVehicle()
     if IsPedInAnyVehicle(ped, false) then
         return GetVehiclePedIsIn(ped, false)
     end
-    -- Fall back to the closest vehicle, so repair works while standing next to
-    -- one rather than only while sitting in it.
     local coords = GetEntityCoords(ped)
     local vehicle = GetClosestVehicle(coords.x, coords.y, coords.z, 6.0, 0, 71)
     if vehicle and vehicle ~= 0 then return vehicle end
     return nil
 end
-
--- ---------------------------------------------------------------------------
--- Server driven commands
--- ---------------------------------------------------------------------------
 
 local commands = {}
 
@@ -499,8 +438,6 @@ commands.revive = function()
     ClearPedBloodDamage(ped)
     ClearPedTasksImmediately(ped)
 
-    -- Let a framework's own revive run too, if one is listening. Harmless when
-    -- nothing is.
     TriggerEvent('tsivtools:revived')
     TSIV.Notify('You were revived by staff.', 'success')
 end
@@ -565,8 +502,6 @@ commands.refuelVehicle = function()
         return
     end
     SetVehicleFuelLevel(vehicle, 100.0)
-    -- Most fuel scripts read a statebag rather than the native, so set that
-    -- too. Harmless when nothing is listening.
     if NetworkGetEntityIsNetworked(vehicle) then
         Entity(vehicle).state:set('fuel', 100.0, true)
     end
@@ -606,8 +541,6 @@ end
 RegisterNetEvent(TSIV.Events.run, function(command, payload)
     local handler = commands[command]
     if not handler then
-        -- An unknown command means the server is a version ahead of the client,
-        -- or something is trying to drive this client that should not be.
         TSIV.Print(('ignored an unknown command from the server: %s'):format(tostring(command)))
         return
     end

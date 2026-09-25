@@ -1,15 +1,7 @@
---[[
-    tsivtools - Discord webhooks
-
-    Optional mirror of the log store into Discord. Turn it on in
-    Config.Logging.discord and paste a webhook URL per category. A category
-    with an empty URL is simply skipped.
-]]
-
 TSIV.Discord = {}
 
 local queue = {}
-local sending = false
+local dropped = 0
 
 local function post(url, payload)
     PerformHttpRequest(url, function(status)
@@ -19,21 +11,18 @@ local function post(url, payload)
     end, 'POST', json.encode(payload), { ['Content-Type'] = 'application/json' })
 end
 
--- Discord rate limits webhooks fairly aggressively. Entries are queued and
--- drained slowly so a burst of detections does not get dropped on the floor.
 CreateThread(function()
     while true do
         Wait(1200)
-        if #queue > 0 and not sending then
-            sending = true
-            local item = table.remove(queue, 1)
-            post(item.url, item.payload)
-            sending = false
+        local item = table.remove(queue, 1)
+        if item then post(item.url, item.payload) end
+        if dropped > 0 and #queue == 0 then
+            print(('%sdiscord was too slow, %d log message(s) were skipped'):format(Config.ConsolePrefix, dropped))
+            dropped = 0
         end
     end
 end)
 
---- Called by TSIV.Logs.Write for every record.
 function TSIV.Discord.Send(category, record)
     local settings = Config.Logging.discord
     if not settings.enabled then return end
@@ -61,6 +50,11 @@ function TSIV.Discord.Send(category, record)
         if ok and #encoded < 900 then
             fields[#fields + 1] = { name = 'Details', value = ('```json\n%s\n```'):format(encoded), inline = false }
         end
+    end
+
+    if #queue >= 200 then
+        table.remove(queue, 1)
+        dropped = dropped + 1
     end
 
     queue[#queue + 1] = {

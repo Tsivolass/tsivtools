@@ -1,13 +1,3 @@
---[[
-    tsivtools - logs
-
-    Every notable thing that happens is written here, against the identifier of
-    whoever did it and whoever it was done to. That is what makes the
-    "identifier lookup" option in the menu useful: you paste a steam id and get
-    back everything tsivtools has ever recorded about that person, on either
-    side of the action.
-]]
-
 TSIV.Logs = {}
 
 local Logs = TSIV.Logs
@@ -27,23 +17,12 @@ local function initFileIds()
 end
 
 CreateThread(function()
-    Wait(500)
+    TSIV.Storage.WaitReady()
     if not TSIV.Storage.UsingMysql() then
         initFileIds()
     end
 end)
 
---- Write a log entry.
----
---- entry = {
----   category   = 'staff' | 'anticheat' | 'connect' | 'ban' | 'garage' | 'chat'
----   message    = 'human readable line'
----   actor      = identifier of whoever caused it     (optional)
----   actorName  = display name                        (optional)
----   target     = identifier of whoever it was aimed at (optional)
----   targetName = display name                        (optional)
----   data       = any extra table                     (optional)
---- }
 function Logs.Write(entry)
     local category = entry.category or 'staff'
     if Config.Logging.categories[category] == false then return end
@@ -62,7 +41,7 @@ function Logs.Write(entry)
     nextId = nextId + 1
 
     if TSIV.Storage.UsingMysql() then
-        TSIV.Storage.Insert(([[
+        TSIV.Storage.InsertLater(([[
             INSERT INTO `%s` (category, created_at, actor, actor_name, target, target_name, message, data)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ]]):format(Config.Database.logTable), {
@@ -73,15 +52,12 @@ function Logs.Write(entry)
     else
         local store = fileStore()
         store[#store + 1] = record
-        -- Trim from the front once the file grows past the configured cap.
         local overflow = #store - Config.Logging.maxEntries
         if overflow > 0 then
             local trimmed = {}
             for index = overflow + 1, #store do
                 trimmed[#trimmed + 1] = store[index]
             end
-            -- The table handed out by Storage.Get is the live one, so it is
-            -- emptied in place rather than replaced.
             for key in pairs(store) do store[key] = nil end
             for index, value in ipairs(trimmed) do store[index] = value end
         end
@@ -92,8 +68,6 @@ function Logs.Write(entry)
     return record
 end
 
---- Convenience wrapper for "a staff member did something".
---- target may be a server id, an identifier string, or nil.
 function Logs.Staff(src, message, target, data)
     local targetIdentifier, targetName = '', ''
     if type(target) == 'number' then
@@ -117,11 +91,9 @@ function Logs.Staff(src, message, target, data)
     })
 end
 
---- Search. `query` is matched, case-insensitively, against the actor and
---- target identifiers and names. Newest first.
 function Logs.Search(query, limit, category)
-    query = (query or ''):lower()
-    limit = math.min(limit or 25, 100)
+    query = TSIV.SafeString(query, 64):lower()
+    limit = TSIV.ToInt(limit, 1, 100) or 25
 
     local results = {}
 
@@ -160,8 +132,6 @@ function Logs.Search(query, limit, category)
     return results
 end
 
---- Counts per category for an identifier, used for the summary line at the top
---- of a lookup.
 function Logs.Summary(query)
     local entries = Logs.Search(query, 100)
     local counts = {}
@@ -171,16 +141,12 @@ function Logs.Summary(query)
     return counts, #entries
 end
 
--- ---------------------------------------------------------------------------
--- Menu hooks
--- ---------------------------------------------------------------------------
-
 TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
     local query = TSIV.SafeString(payload.query, 64)
     if query == '' then return { lines = { 'Nothing to search for.' } } end
 
-    local category = payload.category
-    local entries = Logs.Search(query, payload.limit or 25, category)
+    local category = TSIV.SafeString(payload.category, 16)
+    local entries = Logs.Search(query, payload.limit, category ~= '' and category or nil)
     local counts, total = Logs.Summary(query)
 
     local lines = {}
@@ -222,8 +188,9 @@ TSIV.RegisterRequest('logs.lookup', 'staff.logs', function(src, payload)
 end)
 
 TSIV.RegisterRequest('logs.recent', 'staff.logs', function(src, payload)
-    local category = payload.category or 'all'
-    local entries = Logs.Search('', payload.limit or 25, category)
+    local category = TSIV.SafeString(payload.category, 16)
+    if category == '' then category = 'all' end
+    local entries = Logs.Search('', payload.limit, category)
     local lines = {}
     for _, entry in ipairs(entries) do
         lines[#lines + 1] = ('[%s] %-9s %s%s'):format(
@@ -237,10 +204,6 @@ TSIV.RegisterRequest('logs.recent', 'staff.logs', function(src, payload)
     end
     return { title = ('tsivtools recent logs (%s)'):format(category), lines = lines }
 end)
-
--- ---------------------------------------------------------------------------
--- Connection logging
--- ---------------------------------------------------------------------------
 
 AddEventHandler('playerJoining', function()
     local src = source

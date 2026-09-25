@@ -53,7 +53,6 @@ Config.FrameworkGroupMap = {
     ['superadmin'] = 'superadmin',
     ['owner']      = 'owner',
 }
-ng.
 
 Config.Permissions = {
     -- menu itself

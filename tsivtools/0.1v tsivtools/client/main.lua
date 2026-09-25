@@ -1,29 +1,11 @@
---[[
-    tsivtools - menu assembly and keybind
-
-    The menu is built from the permission set the server sends after spawn. A
-    row is only created if the server said this player holds the permission for
-    it, so nothing a player is not allowed to use is ever sent to their client.
-    The server checks again when the row is used.
-
-    To add a row of your own, look at the builder for the section it belongs in
-    and copy the pattern. docs/EXTENDING.md walks through one end to end.
-]]
-
 local permissions = nil
 local root = nil
-local selected = nil          -- the player most menu options act on
-
--- ---------------------------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------------------------
+local selected = nil
 
 local function can(key)
     return permissions ~= nil and permissions.granted[key] == true
 end
 
---- Build a section into its own menu, and only attach it to the root if it
---- ended up with rows. That way a moderator does not see an empty "Garage".
 local function section(parent, label, description, builder)
     local menu = TSIV.Menu.Create(label, permissions.rankLabel)
     builder(menu)
@@ -38,14 +20,12 @@ local function selectedLabel()
     return ('[%d] %s'):format(selected.id, selected.name)
 end
 
---- Make sure a player is selected before running an action that needs one.
 local function requireSelection()
     if selected then return true end
     TSIV.Notify('Pick a player first, with "Select player".', 'error')
     return false
 end
 
---- Ask the server for the player list and show it as a menu.
 local function choosePlayer(title, onPick)
     CreateThread(function()
         local players = TSIV.Request('player.list')
@@ -79,7 +59,6 @@ local function choosePlayer(title, onPick)
     end)
 end
 
---- Radius list rows share this shape in three different places.
 local function radiusList(menu, label, description, onPick)
     local values = {}
     for _, radius in ipairs(Config.AreaRadiusOptions) do
@@ -89,10 +68,6 @@ local function radiusList(menu, label, description, onPick)
         onPick(value)
     end)
 end
-
--- ---------------------------------------------------------------------------
--- Section: Self
--- ---------------------------------------------------------------------------
 
 local function buildSelf(menu)
     if can('self.godmode') then
@@ -167,12 +142,9 @@ local function buildSelf(menu)
 
     if can('self.tpsaved') and #Config.Teleports > 0 then
         local teleports = TSIV.Menu.Create('Teleports', 'from config.lua')
-        for _, entry in ipairs(Config.Teleports) do
+        for index, entry in ipairs(Config.Teleports) do
             teleports:Button(entry.label, ('%.0f, %.0f, %.0f'):format(entry.coords.x, entry.coords.y, entry.coords.z), function()
-                TSIV.Action('self.teleport', {
-                    saved = true,
-                    x = entry.coords.x, y = entry.coords.y, z = entry.coords.z,
-                })
+                TSIV.Action('self.teleport', { saved = index })
             end)
         end
         menu:Attach('Saved locations', 'The list in Config.Teleports.', teleports)
@@ -191,10 +163,6 @@ local function buildSelf(menu)
     end)
 end
 
--- ---------------------------------------------------------------------------
--- Section: Players
--- ---------------------------------------------------------------------------
-
 local function buildPlayers(menu)
     if not can('player.list') then return end
 
@@ -205,7 +173,6 @@ local function buildPlayers(menu)
         end)
     end)
 
-    -- Keep the row showing who is selected without rebuilding the menu.
     menu.onOpen = function()
         selectedRow.right = selectedLabel()
     end
@@ -338,10 +305,6 @@ local function buildPlayers(menu)
     end
 end
 
--- ---------------------------------------------------------------------------
--- Section: Vehicles
--- ---------------------------------------------------------------------------
-
 local function buildVehicles(menu)
     if can('vehicle.spawn') then
         if #Config.VehicleList > 0 then
@@ -408,10 +371,6 @@ local function buildVehicles(menu)
     end
 end
 
--- ---------------------------------------------------------------------------
--- Section: Props and entities
--- ---------------------------------------------------------------------------
-
 local function buildProps(menu)
     if can('prop.toggleproplog') then
         menu:Checkbox('Log every prop spawn to F8',
@@ -475,12 +434,6 @@ local function buildProps(menu)
     end
 end
 
--- ---------------------------------------------------------------------------
--- Section: Garage
--- ---------------------------------------------------------------------------
-
---- Garage options work on a server id or a raw identifier, so an offline
---- player can still be dealt with.
 local function askIdentifier(title, onGot)
     CreateThread(function()
         local value = TSIV.Input(title, '', 80)
@@ -544,10 +497,6 @@ local function buildGarage(menu)
     end
 end
 
--- ---------------------------------------------------------------------------
--- Section: Staff and logs
--- ---------------------------------------------------------------------------
-
 local function buildStaff(menu)
     if can('staff.online') then
         menu:Button('Online staff', 'Prints every online staff member and their rank to F8.', function()
@@ -592,8 +541,6 @@ local function buildStaff(menu)
                 return
             end
             CreateThread(function()
-                -- Resolve their identifier first, so the lookup matches on that
-                -- rather than on a display name they could change.
                 local details = TSIV.Request('player.identifiers', { target = selected.id })
                 local query = details and details.identifier or selected.name
                 TSIV.ShowBlock(TSIV.Request('logs.lookup', { query = query, limit = 40 }))
@@ -621,10 +568,6 @@ local function buildStaff(menu)
         end)
     end
 end
-
--- ---------------------------------------------------------------------------
--- Assembly
--- ---------------------------------------------------------------------------
 
 local builders = {
     self    = buildSelf,
@@ -660,25 +603,35 @@ local function buildRoot()
     end
 end
 
--- ---------------------------------------------------------------------------
--- Permission handshake
--- ---------------------------------------------------------------------------
+local function sameAccess(a, b)
+    if not a or not b or a.rank ~= b.rank then return false end
+    for key in pairs(a.granted) do
+        if not b.granted[key] then return false end
+    end
+    for key in pairs(b.granted) do
+        if not a.granted[key] then return false end
+    end
+    return true
+end
 
 RegisterNetEvent(TSIV.Events.permissions, function(payload)
+    local previous = permissions
     permissions = payload
 
     if not permissions then
         root = nil
+        if TSIV.Menu.IsOpen() then TSIV.Menu.Close() end
+        return
+    end
+
+    if TSIV.Menu.IsOpen() then
+        if sameAccess(previous, permissions) then return end
+        buildRoot()
+        TSIV.Menu.Open(root)
         return
     end
 
     buildRoot()
-
-    -- A rank change while the menu is open replaces it with the new one rather
-    -- than leaving stale rows on screen.
-    if TSIV.Menu.IsOpen() then
-        TSIV.Menu.Open(root)
-    end
 end)
 
 local function askForPermissions()
@@ -688,15 +641,9 @@ end
 AddEventHandler('playerSpawned', askForPermissions)
 
 CreateThread(function()
-    -- Also ask on resource start, so a restart while players are in game does
-    -- not leave everybody without a menu until they respawn.
     Wait(2000)
     askForPermissions()
 end)
-
--- ---------------------------------------------------------------------------
--- Keybind
--- ---------------------------------------------------------------------------
 
 local function toggleMenu()
     if TSIV.Menu.IsOpen() then
@@ -705,8 +652,6 @@ local function toggleMenu()
     end
 
     if not permissions then
-        -- Either not staff, or the handshake has not happened yet. Ask again
-        -- rather than telling a genuine staff member they have no access.
         askForPermissions()
         Wait(400)
         if not permissions then
@@ -726,13 +671,8 @@ RegisterCommand(Config.MenuCommand, function()
     CreateThread(toggleMenu)
 end, false)
 
--- This is what puts the bind in Settings -> Key Bindings -> FiveM. The key in
--- config.lua is only the default: once a player has connected, their own
--- choice is stored client side and takes over.
 RegisterKeyMapping(Config.MenuCommand, 'Open the tsivtools menu', 'keyboard', Config.MenuKey)
 
--- Close the menu if the resource is stopped while it is open, otherwise the
--- rows stay drawn on screen with nothing behind them.
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= TSIV.resource then return end
     if TSIV.Menu.IsOpen() then TSIV.Menu.Close() end

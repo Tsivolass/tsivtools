@@ -72,7 +72,7 @@ function TSIV.GetRank(src)
         return ranks[#ranks].name
     end
 
-    if rankCache[src] then return rankCache[src] end
+    if rankCache[src] ~= nil then return rankCache[src] or nil end
 
     local best, bestLevel = nil, 0
 
@@ -115,10 +115,6 @@ function TSIV.ClearRankCache(src)
     else
         rankCache = {}
     end
-end
-
-function TSIV.IsStaff(src)
-    return TSIV.GetRank(src) ~= nil and TSIV.GetRank(src) ~= false
 end
 
 function TSIV.Can(src, key)
@@ -293,7 +289,9 @@ end
 TSIV.SendPermissions = sendPermissions
 
 RegisterNetEvent(TSIV.Events.ready, function()
-    sendPermissions(source)
+    local src = source
+    if not allowRate(src) then return end
+    sendPermissions(src)
 end)
 
 AddEventHandler('playerDropped', function()
