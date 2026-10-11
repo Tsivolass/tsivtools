@@ -285,6 +285,7 @@ Config.security = {
     maxMonitorMinutes = Config.waveshield.surveillance.maxMinutes,
     detectionRetention = 100,
     timelineRetention = 100,
+    historyDays = 90,
     heatmap = {
         enabled = false,
         gridSize = 50.0,
@@ -333,6 +334,14 @@ Config.garage = {
 }
 
 Config.anticheat = {
+    forgedEvents = {
+        enabled   = true,
+        action    = 'ban',
+        strikes   = 2,
+        banLength = 0,
+        reason    = 'Sent staff menu events without a staff rank',
+    },
+
     enabled = true,
 
     logPropSpawns = false, -- NOT RECOMMENDED FOR COMMERCIAL SERVERS !

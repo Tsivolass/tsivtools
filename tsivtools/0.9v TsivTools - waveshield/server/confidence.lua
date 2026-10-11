@@ -1,7 +1,7 @@
-TSIV.Confidence = {}
+tsivtools.Confidence = {}
 
-local Confidence = TSIV.Confidence
-local rules = Config.anticheat.confidence or { enabled = false }
+local Confidence = tsivtools.Confidence
+local rules = Config.anticheat.confidence
 
 local scores = {}
 local alerted = {}
@@ -12,19 +12,18 @@ end
 
 local function active()
     if not Config.anticheat.enabled then return false end
-    if not TSIV.Module('confidence') then return false end
-    return rules.enabled ~= false
+    if not tsivtools.Module('confidence') then return false end
+    return rules.enabled
 end
 
 local function evidenceOnly(module)
-    local list = rules.evidenceOnly
-    return list ~= nil and list[module] == true
+    return rules.evidenceOnly[module] == true
 end
 
 Confidence.EvidenceOnly = evidenceOnly
 
 local function prune(entry, now)
-    local window = rules.window or 180.0
+    local window = rules.window
     local kept = {}
     local total = 0.0
     local banTotal = 0.0
@@ -36,7 +35,7 @@ local function prune(entry, now)
         local age = now - item.at
         if age <= window then
             local points = item.points
-            if rules.decay ~= false and window > 0 then
+            if rules.decay and window > 0 then
                 points = points * (1.0 - age / window)
             end
             if points > 0 then
@@ -97,11 +96,10 @@ function Confidence.Lines(src)
 
     prune(entry, seconds())
 
-    local solo = rules.soloBanAt or 0
+    local solo = rules.soloBanAt
     local lines = {
         ('certainty : %.1f%% overall, %.1f%% of it can act'):format(entry.total, entry.banTotal),
-        ('ban needs : %.0f%% with %d module(s) agreeing'):format(
-            rules.banAt or 100, rules.requireDistinctModules or 2),
+        ('ban needs : %.0f%% with %d module(s) agreeing'):format(rules.banAt, rules.requireDistinctModules),
         ('or alone  : %s'):format(solo > 0 and ('%.0f%% from one module'):format(solo) or 'never'),
         ('modules   : %d agreeing, %d of them actionable'):format(entry.distinct, entry.banDistinct),
     }
@@ -117,10 +115,10 @@ end
 function Confidence.Add(src, module, points, reason, detail)
     if not active() then return false end
     if not src or not GetPlayerName(src) then return false end
-    if TSIV.AntiCheat and TSIV.AntiCheat.IsExempt and TSIV.AntiCheat.IsExempt(src) then return false end
+    if tsivtools.AntiCheat.IsExempt(src) then return false end
 
     points = tonumber(points) or 0
-    local weight = (rules.weights and rules.weights[module]) or rules.defaultWeight or 20
+    local weight = rules.weights[module] or rules.defaultWeight
     points = points * (weight / 100.0)
     if points <= 0 then return false end
 
@@ -132,16 +130,16 @@ function Confidence.Add(src, module, points, reason, detail)
     end
 
     entry.entries[#entry.entries + 1] = { at = now, module = module, points = points, reason = reason }
-    if #entry.entries > (rules.maxEntries or 200) then
+    if #entry.entries > rules.maxEntries then
         table.remove(entry.entries, 1)
     end
 
     prune(entry, now)
 
-    local needed = rules.requireDistinctModules or 2
-    local banAt = rules.banAt or 100
-    local solo = rules.soloBanAt or 0
-    local kickAt = rules.kickAt or 0
+    local needed = rules.requireDistinctModules
+    local banAt = rules.banAt
+    local solo = rules.soloBanAt
+    local kickAt = rules.kickAt
 
     local lines = {
         ('trigger   : %s'):format(reason or module),
@@ -162,23 +160,22 @@ function Confidence.Add(src, module, points, reason, detail)
             overwhelming and 'one module is past the certain threshold on its own'
             or 'two or more modules agree past the ban threshold')
         Confidence.Clear(src)
-        TSIV.AntiCheat.Punish(src, 'ban', rules.banReason or 'Anticheat confidence threshold',
-            rules.banLength or 0, lines)
+        tsivtools.AntiCheat.Punish(src, 'ban', rules.banReason, rules.banLength, lines)
         return true
     end
 
     if kickAt > 0 and entry.banTotal >= kickAt and entry.banDistinct >= needed then
         Confidence.Clear(src)
-        TSIV.AntiCheat.Punish(src, 'kick', rules.kickReason or 'Anticheat confidence threshold', 0, lines)
+        tsivtools.AntiCheat.Punish(src, 'kick', rules.kickReason, 0, lines)
         return true
     end
 
-    local alertAt = rules.alertAt or 0
+    local alertAt = rules.alertAt
     if alertAt > 0 and entry.total >= alertAt then
-        local cooldown = rules.alertCooldown or 20.0
+        local cooldown = rules.alertCooldown
         if not alerted[src] or now - alerted[src] >= cooldown then
             alerted[src] = now
-            TSIV.AntiCheat.Punish(src, 'alert', ('%s (watching)'):format(reason or module), 0, lines)
+            tsivtools.AntiCheat.Punish(src, 'alert', ('%s (watching)'):format(reason or module), 0, lines)
         end
     end
 
@@ -189,13 +186,13 @@ AddEventHandler('playerDropped', function()
     Confidence.Clear(source)
 end)
 
-TSIV.RegisterRequest('anticheat.confidence', 'staff.alerts', function(_, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterRequest('anticheat.confidence', 'staff.alerts', function(_, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then
         return { title = 'Anticheat confidence', lines = { 'That player isnt online !' } }
     end
     return {
-        title = ('Anticheat confidence for %s'):format(TSIV.Describe(target)),
+        title = ('Anticheat confidence for %s'):format(tsivtools.Describe(target)),
         lines = Confidence.Lines(target),
     }
 end)

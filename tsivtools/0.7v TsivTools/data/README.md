@@ -12,6 +12,9 @@ is `false`:
     aliases.json    license/name/Steam history
     player_history.json first-seen, join and name history used by Security Center
 
+`player_history.json` is used even when MySQL is on, and it forgets players who
+have not joined for `Config.security.historyDays` days.
+
 The files are created on first use. They are written a few seconds after a
 change and again when the resource stops, so do not edit them while the server
 is running - your changes will be overwritten.

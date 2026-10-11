@@ -11,7 +11,7 @@ Every option follows the same path:
 
 ```
 client/main.lua          server/actions.lua            client/actions.lua
-   menu row      ---->    TSIV.RegisterAction   ---->   commands.<name>
+   menu row      ---->    tsivtools.RegisterAction   ---->   commands.<name>
                           (permission checked)          (if the client
                                                          has to do it)
 ```
@@ -56,18 +56,18 @@ off like every other one:
 `server/actions.lua`, anywhere near the other self actions:
 
 ```lua
-TSIV.RegisterAction('self.settime', 'self.settime', function(src, payload)
-    local hour = TSIV.ToInt(payload.hour, 0, 23)
+tsivtools.RegisterAction('self.settime', 'self.settime', function(src, payload)
+    local hour = tsivtools.ToInt(payload.hour, 0, 23)
     if not hour then
-        TSIV.Notify(src, 'That is not an hour between 0 and 23.', 'error')
+        tsivtools.Notify(src, 'That is not an hour between 0 and 23.', 'error')
         return
     end
 
     -- Everyone's client gets the new time.
-    TriggerClientEvent(TSIV.Events.run, -1, 'setTime', { hour = hour })
+    TriggerClientEvent(tsivtools.Events.run, -1, 'setTime', { hour = hour })
 
-    TSIV.Notify(src, ('Set the time to %02d:00'):format(hour), 'success')
-    TSIV.Logs.Staff(src, ('Set the time of day to %02d:00'):format(hour))
+    tsivtools.Notify(src, ('Set the time to %02d:00'):format(hour), 'success')
+    tsivtools.Logs.Staff(src, ('Set the time of day to %02d:00'):format(hour))
 end)
 ```
 
@@ -76,8 +76,8 @@ the handler. The permission has already been checked by the time your handler
 runs, so do not check it again.
 
 **Validate every field of `payload`.** It arrived from a client and a client can
-send anything. `TSIV.ToInt`, `TSIV.ToNumber`, `TSIV.SafeString` and
-`TSIV.ResolveTarget` are there for exactly this and all reject rubbish by
+send anything. `tsivtools.ToInt`, `tsivtools.ToNumber`, `tsivtools.SafeString` and
+`tsivtools.ResolveTarget` are there for exactly this and all reject rubbish by
 returning `nil`.
 
 ### 3. Add the client command
@@ -98,9 +98,9 @@ end
 if can('self.settime') then
     menu:Button('Set the time of day', 'Changes it for everybody on the server.', function()
         CreateThread(function()
-            local hour = TSIV.InputNumber('Hour (0 to 23)', '12', 2)
+            local hour = tsivtools.InputNumber('Hour (0 to 23)', '12', 2)
             if not hour then return end
-            TSIV.Action('self.settime', { hour = hour })
+            tsivtools.Action('self.settime', { hour = hour })
         end)
     end)
 end
@@ -114,8 +114,8 @@ end
 
 **Wrap anything that waits in `CreateThread`.**
 
-`TSIV.Input`, `TSIV.InputNumber` and `TSIV.Request` all block until they get an
-answer. `TSIV.Input` opens an HTML text box (so it supports paste), takes NUI
+`tsivtools.Input`, `tsivtools.InputNumber` and `tsivtools.Request` all block until they get an
+answer. `tsivtools.Input` opens an HTML text box (so it supports paste), takes NUI
 focus, and locks the menu's key handling until it closes - all of which it
 undoes for you on both the confirm and the cancel path. A menu callback runs on the menu's own thread, so blocking in one
 freezes the menu. Every callback in `client/main.lua` that waits is wrapped:
@@ -123,9 +123,9 @@ freezes the menu. Every callback in `client/main.lua` that waits is wrapped:
 ```lua
 menu:Button('Label', 'Description', function()
     CreateThread(function()
-        local value = TSIV.Input('Type something', '', 32)
+        local value = tsivtools.Input('Type something', '', 32)
         if not value then return end        -- nil means they cancelled
-        TSIV.Action('something', { value = value })
+        tsivtools.Action('something', { value = value })
     end)
 end)
 ```
@@ -134,7 +134,7 @@ end)
 Carrying on with a `nil` is how you get `attempt to concatenate a nil value` in
 somebody's console.
 
-**Do not trust a server id from a client.** Use `TSIV.ResolveTarget`, which
+**Do not trust a server id from a client.** Use `tsivtools.ResolveTarget`, which
 returns `nil` unless it is a currently connected player.
 
 ---
@@ -145,7 +145,7 @@ Built in `client/menu.lua`. Everything returns the item, so you can keep a
 reference and change it later.
 
 ```lua
-local menu = TSIV.Menu.Create('Title', 'subtitle')
+local menu = tsivtools.Menu.Create('Title', 'subtitle')
 
 menu:Button('Label', 'Description', function() end)
 
@@ -170,26 +170,26 @@ menu:Clear()                -- throw away every row, for a rebuild
 Opening and closing:
 
 ```lua
-TSIV.Menu.Open(menu)     -- as a new root
-TSIV.Menu.Push(menu)     -- on top of the current one, Backspace returns
-TSIV.Menu.Back()
-TSIV.Menu.Close()
-TSIV.Menu.IsOpen()
-TSIV.Menu.Refresh()      -- after rebuilding rows while it is open
+tsivtools.Menu.Open(menu)     -- as a new root
+tsivtools.Menu.Push(menu)     -- on top of the current one, Backspace returns
+tsivtools.Menu.Back()
+tsivtools.Menu.Close()
+tsivtools.Menu.IsOpen()
+tsivtools.Menu.Refresh()      -- after rebuilding rows while it is open
 ```
 
 `menu.onOpen` runs each time the menu is shown. Use it for a list that has to
 be current, like the ban list:
 
 ```lua
-local bans = TSIV.Menu.Create('Bans', '')
+local bans = tsivtools.Menu.Create('Bans', '')
 bans.onOpen = function()
     CreateThread(function()
         bans:Clear()
-        for _, ban in ipairs(TSIV.Request('bans.list') or {}) do
+        for _, ban in ipairs(tsivtools.Request('bans.list') or {}) do
             bans:Button(ban.name, ban.reason, function() end)
         end
-        TSIV.Menu.Refresh()
+        tsivtools.Menu.Refresh()
     end)
 end
 ```
@@ -204,7 +204,7 @@ back.
 Server:
 
 ```lua
-TSIV.RegisterRequest('my.thing', 'staff.logs', function(src, payload)
+tsivtools.RegisterRequest('my.thing', 'staff.logs', function(src, payload)
     return { title = 'a heading', lines = { 'line one', 'line two' } }
 end)
 ```
@@ -213,16 +213,16 @@ Client:
 
 ```lua
 CreateThread(function()
-    local result = TSIV.Request('my.thing', { some = 'payload' })
-    TSIV.ShowBlock(result)        -- prints it as a block in F8
+    local result = tsivtools.Request('my.thing', { some = 'payload' })
+    tsivtools.ShowBlock(result)        -- prints it as a block in F8
 end)
 ```
 
-`TSIV.Request` returns `nil` on a timeout or when the server refused on
+`tsivtools.Request` returns `nil` on a timeout or when the server refused on
 permission grounds. Handle both.
 
-The `{ title = ..., lines = { ... } }` shape is what `TSIV.ShowBlock` and
-`TSIV.ConsoleBlock` expect. Sticking to it means your output looks like
+The `{ title = ..., lines = { ... } }` shape is what `tsivtools.ShowBlock` and
+`tsivtools.ConsoleBlock` expect. Sticking to it means your output looks like
 everything else in the F8 console.
 
 ---
@@ -230,7 +230,7 @@ everything else in the F8 console.
 ## Writing to the log
 
 ```lua
-TSIV.Logs.Staff(src, 'what they did', target, { anything = 'extra' })
+tsivtools.Logs.Staff(src, 'what they did', target, { anything = 'extra' })
 ```
 
 `target` may be a server id, an identifier string, or `nil`.
@@ -238,7 +238,7 @@ TSIV.Logs.Staff(src, 'what they did', target, { anything = 'extra' })
 For something that is not a staff action:
 
 ```lua
-TSIV.Logs.Write({
+tsivtools.Logs.Write({
     category   = 'anticheat',   -- must be a key in Config.Logging.categories
     message    = 'what happened',
     actor      = 'license:...',
@@ -316,18 +316,18 @@ file rather than per call:
 -- server side, ESX
 local ESX = exports['es_extended']:getSharedObject()
 
-TSIV.RegisterAction('economy.givecash', 'economy.givecash', function(src, payload)
-    local target = TSIV.ResolveTarget(payload.target)
+tsivtools.RegisterAction('economy.givecash', 'economy.givecash', function(src, payload)
+    local target = tsivtools.ResolveTarget(payload.target)
     if not target then return end
 
-    local amount = TSIV.ToInt(payload.amount, 1, 1000000)
+    local amount = tsivtools.ToInt(payload.amount, 1, 1000000)
     if not amount then return end
 
     local player = ESX.GetPlayerFromId(target)
     if not player then return end
 
     player.addMoney(amount)
-    TSIV.Logs.Staff(src, ('Gave $%d to %s'):format(amount, TSIV.Describe(target)), target)
+    tsivtools.Logs.Staff(src, ('Gave $%d to %s'):format(amount, tsivtools.Describe(target)), target)
 end)
 ```
 
@@ -350,11 +350,11 @@ Server-side detections hang off `entityCreating` and `entityCreated` in
 Y seconds" for you:
 
 ```lua
-local window = TSIV.NewWindow(5.0)          -- five second window
+local window = tsivtools.NewWindow(5.0)          -- five second window
 local count = window:push(someValue)        -- returns hits still inside it
 if count > 10 then
     window:reset()
-    TSIV.AntiCheat.Punish(src, 'alert', 'whatever it was', 0, {
+    tsivtools.AntiCheat.Punish(src, 'alert', 'whatever it was', 0, {
         ('count : %d in 5 seconds'):format(count),
     })
 end
@@ -366,7 +366,7 @@ alerts staff, writes the log and applies the punishment.
 
 Before you add one, be honest about what it can see. A server-side check on
 entity creation is solid. A client-side check is a suggestion from a machine the
-suspect controls. Send the second kind through `TSIV.Events.report`, which is
+suspect controls. Send the second kind through `tsivtools.Events.report`, which is
 what the existing client checks use, and it will be presented to staff as the
 hint it is.
 

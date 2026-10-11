@@ -1,18 +1,26 @@
-TSIV.Garage = {}
+tsivtools.Garage = {}
 
-local Garage = TSIV.Garage
+local Garage = tsivtools.Garage
 
 local function usingMysql()
-    return Config.Garage.mode == 'mysql' and TSIV.Storage.UsingMysql()
+    return     Config.Garage.mode == 'mysql' and tsivtools.Storage.UsingMysql()
 end
 
 local function fileStore()
-    return TSIV.Storage.Get('garages')
+    return tsivtools.Storage.Get('garages')
+end
+
+local function modelOf(props)
+    if type(props) == 'string' then
+        local ok, decoded = pcall(json.decode, props)
+        props = ok and decoded or nil
+    end
+    return type(props) == 'table' and props.modelName or 'unknown'
 end
 
 local function generatePlate()
-    local prefix = Config.Garage.platePrefix or ''
-    local length = math.max(#prefix + 1, math.min(Config.Garage.plateLength or 8, 8))
+    local prefix = Config.Garage.platePrefix:sub(1, 7)
+    local length = math.max(#prefix + 1, math.min(Config.Garage.plateLength, 8))
     local chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     local plate = prefix
     for _ = 1, length - #prefix do
@@ -24,7 +32,7 @@ end
 
 local function plateExists(plate)
     if usingMysql() then
-        local found = TSIV.Storage.Scalar(([[SELECT `%s` FROM `%s` WHERE `%s` = ? LIMIT 1]])
+        local found = tsivtools.Storage.Scalar(([[SELECT `%s` FROM `%s` WHERE `%s` = ? LIMIT 1]])
             :format(Config.Garage.plateColumn, Config.Garage.table, Config.Garage.plateColumn), { plate })
         return found ~= nil
     end
@@ -44,10 +52,10 @@ local function uniquePlate()
     return generatePlate() .. tostring(math.random(9))
 end
 
-
 function Garage.Give(identifier, model, plate, props)
-    plate = plate and TSIV.SafeString(plate, 8):upper() or uniquePlate()
-    model = TSIV.SafeString(model, 32):lower()
+    plate = tsivtools.SafeString(plate, 8):upper()
+    if plate == '' then plate = uniquePlate() end
+    model = tsivtools.SafeString(model, 32):lower()
     if model == '' then return nil, 'no model given' end
     if plateExists(plate) then return nil, ('plate %s already exists'):format(plate) end
 
@@ -59,7 +67,7 @@ function Garage.Give(identifier, model, plate, props)
     if usingMysql() then
         local columns = { Config.Garage.ownerColumn, Config.Garage.plateColumn, Config.Garage.propsColumn }
         local values = { identifier, plate, json.encode(props) }
-        for column, value in pairs(Config.Garage.extraColumns or {}) do
+        for column, value in pairs(Config.Garage.extraColumns) do
             columns[#columns + 1] = column
             values[#values + 1] = value
         end
@@ -71,7 +79,7 @@ function Garage.Give(identifier, model, plate, props)
             quoted[index] = ('`%s`'):format(column)
         end
 
-        TSIV.Storage.Insert(('INSERT INTO `%s` (%s) VALUES (%s)')
+        tsivtools.Storage.Insert(('INSERT INTO `%s` (%s) VALUES (%s)')
             :format(Config.Garage.table, table.concat(quoted, ', '), table.concat(placeholders, ', ')), values)
     else
         local store = fileStore()
@@ -83,26 +91,26 @@ function Garage.Give(identifier, model, plate, props)
             props = props,
             addedAt = os.time(),
         })
-        TSIV.Storage.MarkDirty('garages')
-        TSIV.Storage.Flush('garages')
+        tsivtools.Storage.MarkDirty('garages')
+        tsivtools.Storage.Flush('garages')
     end
 
     return plate
 end
 
 function Garage.Remove(identifier, plate)
-    plate = TSIV.SafeString(plate, 8):upper()
+    plate = tsivtools.SafeString(plate, 8):upper()
     if plate == '' then return nil end
 
     if usingMysql() then
-        local row = TSIV.Storage.Single(([[SELECT * FROM `%s` WHERE `%s` = ? AND `%s` = ? LIMIT 1]])
+        local row = tsivtools.Storage.Single(([[SELECT * FROM `%s` WHERE `%s` = ? AND `%s` = ? LIMIT 1]])
             :format(Config.Garage.table, Config.Garage.ownerColumn, Config.Garage.plateColumn),
             { identifier, plate })
         if not row then return nil end
-        TSIV.Storage.Execute(([[DELETE FROM `%s` WHERE `%s` = ? AND `%s` = ?]])
+        tsivtools.Storage.Execute(([[DELETE FROM `%s` WHERE `%s` = ? AND `%s` = ?]])
             :format(Config.Garage.table, Config.Garage.ownerColumn, Config.Garage.plateColumn),
             { identifier, plate })
-        return { plate = plate, model = 'unknown' }
+        return { plate = plate, model = modelOf(row[Config.Garage.propsColumn]) }
     end
 
     local store = fileStore()
@@ -112,8 +120,8 @@ function Garage.Remove(identifier, plate)
     for index, vehicle in ipairs(vehicles) do
         if vehicle.plate == plate then
             table.remove(vehicles, index)
-            TSIV.Storage.MarkDirty('garages')
-            TSIV.Storage.Flush('garages')
+            tsivtools.Storage.MarkDirty('garages')
+            tsivtools.Storage.Flush('garages')
             return vehicle
         end
     end
@@ -122,18 +130,13 @@ end
 
 function Garage.List(identifier)
     if usingMysql() then
-        local rows = TSIV.Storage.Query(([[SELECT * FROM `%s` WHERE `%s` = ?]])
+        local rows = tsivtools.Storage.Query(([[SELECT * FROM `%s` WHERE `%s` = ?]])
             :format(Config.Garage.table, Config.Garage.ownerColumn), { identifier }) or {}
         local out = {}
         for _, row in ipairs(rows) do
-            local props = row[Config.Garage.propsColumn]
-            if type(props) == 'string' then
-                local ok, decoded = pcall(json.decode, props)
-                props = ok and decoded or {}
-            end
             out[#out + 1] = {
                 plate = row[Config.Garage.plateColumn],
-                model = (props and props.modelName) or 'unknown',
+                model = modelOf(row[Config.Garage.propsColumn]),
                 stored = row.stored,
             }
         end
@@ -144,19 +147,19 @@ function Garage.List(identifier)
 end
 
 local function resolveIdentifier(value)
-    local target = TSIV.ResolveTarget(value)
+    local target = tsivtools.ResolveTarget(value)
     if target then
-        return TSIV.GetPrimaryIdentifier(target), TSIV.GetName(target), target
+        return tsivtools.GetPrimaryIdentifier(target), tsivtools.GetName(target), target
     end
 
-    local text = TSIV.SafeString(value, 80)
+    local text = tsivtools.SafeString(value, 80)
     if text:find(':') then
         return text, text, nil
     end
     return nil
 end
 
-TSIV.RegisterRequest('garage.lookup', 'garage.lookup', function(src, payload)
+tsivtools.RegisterRequest('garage.lookup', 'garage.lookup', function(src, payload)
     local identifier, name = resolveIdentifier(payload.target)
     if not identifier then
         return { title = 'TsivTools garage lookup', lines = { 'No player with that user ID or identifier !' } }
@@ -176,74 +179,74 @@ TSIV.RegisterRequest('garage.lookup', 'garage.lookup', function(src, payload)
         for index, vehicle in ipairs(vehicles) do
             lines[#lines + 1] = ('%2d. plate %-9s model %s%s'):format(
                 index, vehicle.plate or '?', vehicle.model or '?',
-                vehicle.addedAt and ('   added ' .. TSIV.FormatTimestamp(vehicle.addedAt)) or '')
+                vehicle.addedAt and ('   added ' .. tsivtools.FormatTimestamp(vehicle.addedAt)) or '')
         end
     end
 
-    TSIV.Logs.Staff(src, ('Looked up the garage of %s'):format(name or identifier), identifier)
+    tsivtools.Logs.Staff(src, ('Looked up the garage of %s'):format(name or identifier), identifier)
 
     return { title = ('TsivTools garage lookup: %s'):format(name or identifier), lines = lines, vehicles = vehicles }
 end)
 
-TSIV.RegisterAction('garage.give', 'garage.give', function(src, payload)
+tsivtools.RegisterAction('garage.give', 'garage.give', function(src, payload)
     local identifier, name, target = resolveIdentifier(payload.target)
     if not identifier then
-        TSIV.Notify(src, 'No player with that ID !', 'error')
+        tsivtools.Notify(src, 'No player with that ID !', 'error')
         return
     end
 
-    local model = TSIV.SafeString(payload.model, 32):lower()
+    local model = tsivtools.SafeString(payload.model, 32):lower()
     if model == '' then
-        TSIV.Notify(src, 'You need to input a vehicle model name !', 'error')
+        tsivtools.Notify(src, 'You need to input a vehicle model name !', 'error')
         return
     end
 
     local plate, err = Garage.Give(identifier, model, payload.plate)
     if not plate then
-        TSIV.Notify(src, ('Could not add the vehicle: %s'):format(err or 'unknown error'), 'error')
+        tsivtools.Notify(src, ('Could not add the vehicle: %s'):format(err or 'unknown error'), 'error')
         return
     end
 
-    TSIV.Notify(src, ('Added %s (plate %s) to the garage of %s'):format(model, plate, name or identifier), 'success')
+    tsivtools.Notify(src, ('Added %s (plate %s) to the garage of %s'):format(model, plate, name or identifier), 'success')
     if target then
-        TSIV.Notify(target, ('A %s was added to your garage, plate %s'):format(model, plate), 'info')
+        tsivtools.Notify(target, ('A %s was added to your garage, plate %s'):format(model, plate), 'info')
     end
 
-    TSIV.Logs.Write({
+    tsivtools.Logs.Write({
         category = 'garage',
         message = ('Added %s (plate %s) to the garage of %s'):format(model, plate, name or identifier),
-        actor = TSIV.GetPrimaryIdentifier(src),
-        actorName = TSIV.GetName(src),
+        actor = tsivtools.GetPrimaryIdentifier(src),
+        actorName = tsivtools.GetName(src),
         target = identifier,
         targetName = name or '',
         data = { model = model, plate = plate },
     })
 end)
 
-TSIV.RegisterAction('garage.remove', 'garage.remove', function(src, payload)
+tsivtools.RegisterAction('garage.remove', 'garage.remove', function(src, payload)
     local identifier, name, target = resolveIdentifier(payload.target)
     if not identifier then
-        TSIV.Notify(src, 'No player with that ID !', 'error')
+        tsivtools.Notify(src, 'No player with that ID !', 'error')
         return
     end
 
-    local plate = TSIV.SafeString(payload.plate, 8):upper()
+    local plate = tsivtools.SafeString(payload.plate, 8):upper()
     local removed = Garage.Remove(identifier, plate)
     if not removed then
-        TSIV.Notify(src, ('No vehicle with plate %s in that garage !'):format(plate), 'error')
+        tsivtools.Notify(src, ('No vehicle with plate %s in that garage !'):format(plate), 'error')
         return
     end
 
-    TSIV.Notify(src, ('Removed plate %s from the garage of %s'):format(plate, name or identifier), 'success')
+    tsivtools.Notify(src, ('Removed plate %s from the garage of %s'):format(plate, name or identifier), 'success')
     if target then
-        TSIV.Notify(target, ('The vehicle with plate %s was removed from your garage !'):format(plate), 'info')
+        tsivtools.Notify(target, ('The vehicle with plate %s was removed from your garage !'):format(plate), 'info')
     end
 
-    TSIV.Logs.Write({
+    tsivtools.Logs.Write({
         category = 'garage',
         message = ('Removed plate %s (%s) from the garage of %s'):format(plate, removed.model or '?', name or identifier),
-        actor = TSIV.GetPrimaryIdentifier(src),
-        actorName = TSIV.GetName(src),
+        actor = tsivtools.GetPrimaryIdentifier(src),
+        actorName = tsivtools.GetName(src),
         target = identifier,
         targetName = name or '',
         data = { plate = plate, model = removed.model },

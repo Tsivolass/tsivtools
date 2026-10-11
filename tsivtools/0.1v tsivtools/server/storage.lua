@@ -1,35 +1,55 @@
---[[
-    tsivtools - storage
+tsivtools.Storage = {}
 
-    One layer over the two ways tsivtools can persist data:
-
-      file  - JSON inside tsivtools/data/. Nothing to install.
-      mysql - a real table through oxmysql.
-
-    Everything above this file (bans, logs, garage) only ever calls the
-    functions here, so switching Config.Database.enabled does not require
-    changes anywhere else.
-]]
-
-TSIV.Storage = {}
-
-local Storage = TSIV.Storage
+local Storage = tsivtools.Storage
 local cache = {}
 local dirty = {}
 local useMysql = Config.Database.enabled
-
--- ---------------------------------------------------------------------------
--- File backend
--- ---------------------------------------------------------------------------
 
 local function filePath(name)
     return ('data/%s.json'):format(name)
 end
 
+local oldKeys = {
+    ['created_at'] = 'createdat',
+    ['expires_at'] = 'expiresat',
+    ['banned_by'] = 'bannedby',
+    ['added_by'] = 'addedby',
+    ['related_identifier'] = 'relatedidentifier',
+    ['related_name'] = 'relatedname',
+}
+
+local function migrate(data)
+    local changed = false
+    local settings = {}
+
+    for key, value in pairs(data) do
+        if type(value) == 'table' then
+            for old, new in pairs(oldKeys) do
+                if value[old] ~= nil then
+                    if value[new] == nil then value[new] = value[old] end
+                    value[old] = nil
+                    changed = true
+                end
+            end
+        elseif type(key) == 'string' and key:sub(1, 8) == 'traffic_' then
+            settings[#settings + 1] = key
+        end
+    end
+
+    for _, key in ipairs(settings) do
+        local new = 'traffic' .. key:sub(9)
+        if data[new] == nil then data[new] = data[key] end
+        data[key] = nil
+        changed = true
+    end
+
+    return changed
+end
+
 local function loadFile(name)
     if cache[name] then return cache[name] end
 
-    local raw = LoadResourceFile(TSIV.resource, filePath(name))
+    local raw = LoadResourceFile(tsivtools.resource, filePath(name))
     local data = nil
 
     if raw and raw ~= '' then
@@ -37,46 +57,82 @@ local function loadFile(name)
         if ok and type(decoded) == 'table' then
             data = decoded
         else
-            -- A corrupt file is kept aside rather than silently overwritten,
-            -- so the data is still there to look at afterwards.
-            SaveResourceFile(TSIV.resource, filePath(name .. '.corrupt'), raw, -1)
+            SaveResourceFile(tsivtools.resource, filePath(name .. '.corrupt'), raw, -1)
             print(('%sdata/%s.json could not be parsed, it was renamed to %s.corrupt.json and a fresh file was started')
                 :format(Config.ConsolePrefix, name, name))
         end
     end
 
+    if data and migrate(data) then dirty[name] = true end
     cache[name] = data or {}
     return cache[name]
 end
 
+local writes = {}
+
 local function saveFile(name)
     local data = cache[name]
     if not data then return end
-    SaveResourceFile(TSIV.resource, filePath(name), json.encode(data), -1)
+    writes[name] = (writes[name] or 0) + 1
+    SaveResourceFile(tsivtools.resource, filePath(name), json.encode(data), -1)
 end
 
--- Files are flushed on a timer rather than on every write. A log-heavy server
--- would otherwise spend its time re-encoding the same JSON dozens of times a
--- second.
+local function encodeSlowly(data)
+    local parts = {}
+    local count = #data
+    if count > 0 then
+        local items = table.move(data, 1, count, 1, {})
+        for index = 1, count do
+            parts[index] = json.encode(items[index])
+            if index % 200 == 0 then Wait(0) end
+        end
+        return '[' .. table.concat(parts, ',') .. ']'
+    end
+
+    local keys = {}
+    for key in pairs(data) do
+        if type(key) ~= 'string' then return json.encode(data) end
+        keys[#keys + 1] = key
+    end
+    if #keys == 0 then return json.encode(data) end
+
+    for index, key in ipairs(keys) do
+        local value = data[key]
+        if value ~= nil then parts[#parts + 1] = json.encode(key) .. ':' .. json.encode(value) end
+        if index % 200 == 0 then Wait(0) end
+    end
+    return '{' .. table.concat(parts, ',') .. '}'
+end
+
+local function saveInBackground(name)
+    local data = cache[name]
+    if not data then return end
+    local before = writes[name] or 0
+    local text = encodeSlowly(data)
+    if (writes[name] or 0) ~= before then return end
+    writes[name] = before + 1
+    SaveResourceFile(tsivtools.resource, filePath(name), text, -1)
+end
+
 CreateThread(function()
     while true do
-        Wait(5000)
-        for name in pairs(dirty) do
-            saveFile(name)
+        Wait(10000)
+        local names = {}
+        for name in pairs(dirty) do names[#names + 1] = name end
+        for _, name in ipairs(names) do
             dirty[name] = nil
+            saveInBackground(name)
         end
     end
 end)
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource ~= TSIV.resource then return end
+    if resource ~= tsivtools.resource then return end
     for name in pairs(dirty) do
         saveFile(name)
     end
 end)
 
---- Read a whole file-backed collection. The returned table is live: mutate it
---- and then call Storage.MarkDirty to have it written out.
 function Storage.Get(name)
     return loadFile(name)
 end
@@ -97,73 +153,120 @@ function Storage.Flush(name)
     end
 end
 
--- ---------------------------------------------------------------------------
--- MySQL backend
--- ---------------------------------------------------------------------------
+local ready = false
+
+function Storage.WaitReady()
+    local waited = 0
+    while not ready and waited < 15000 do
+        Wait(100)
+        waited = waited + 100
+    end
+    return ready
+end
 
 function Storage.UsingMysql()
+    if not ready and coroutine.isyieldable() then Storage.WaitReady() end
     return useMysql
 end
 
---- Thin wrappers so the rest of the resource never has to know whether
---- oxmysql is present. Each returns nil when MySQL is off.
 function Storage.Query(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.query.await(query, params or {})
 end
 
 function Storage.Single(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.single.await(query, params or {})
 end
 
 function Storage.Scalar(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.scalar.await(query, params or {})
 end
 
 function Storage.Execute(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.update.await(query, params or {})
 end
 
 function Storage.Insert(query, params)
-    if not useMysql then return nil end
+    if not Storage.UsingMysql() then return nil end
     return MySQL.insert.await(query, params or {})
 end
 
--- ---------------------------------------------------------------------------
--- Schema
--- ---------------------------------------------------------------------------
+function Storage.InsertLater(query, params)
+    if not Storage.UsingMysql() then return end
+    MySQL.insert(query, params or {})
+end
+
+local oldColumns = {
+    { 'banTable', 'banned_by', 'bannedby', "VARCHAR(64) NOT NULL DEFAULT ''" },
+    { 'banTable', 'created_at', 'createdat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'banTable', 'expires_at', 'expiresat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'logTable', 'created_at', 'createdat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'logTable', 'actor_name', 'actorname', "VARCHAR(64) NOT NULL DEFAULT ''" },
+    { 'logTable', 'target_name', 'targetname', "VARCHAR(64) NOT NULL DEFAULT ''" },
+    { 'watchlistTable', 'added_by', 'addedby', "VARCHAR(80) NOT NULL DEFAULT ''" },
+    { 'watchlistTable', 'created_at', 'createdat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'tagsTable', 'created_at', 'createdat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'tagsTable', 'expires_at', 'expiresat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'tagsTable', 'added_by', 'addedby', "VARCHAR(80) NOT NULL DEFAULT ''" },
+    { 'relationshipsTable', 'related_identifier', 'relatedidentifier', 'VARCHAR(80) NOT NULL' },
+    { 'relationshipsTable', 'related_name', 'relatedname', "VARCHAR(64) NOT NULL DEFAULT ''" },
+    { 'relationshipsTable', 'created_at', 'createdat', 'INT UNSIGNED NOT NULL DEFAULT 0' },
+    { 'relationshipsTable', 'added_by', 'addedby', "VARCHAR(80) NOT NULL DEFAULT ''" },
+}
+
+local function hasColumn(tableName, column)
+    local count = MySQL.scalar.await([[
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+    ]], { tableName, column })
+    return (tonumber(count) or 0) > 0
+end
+
+local function renameOldColumns()
+    for _, entry in ipairs(oldColumns) do
+        local tableName = Config.Database[entry[1]]
+        if tableName and hasColumn(tableName, entry[2]) and not hasColumn(tableName, entry[3]) then
+            local sql = ('ALTER TABLE `%s` CHANGE `%s` `%s` %s'):format(tableName, entry[2], entry[3], entry[4])
+            if pcall(MySQL.update.await, sql) then
+                print(('%srenamed %s.%s to %s'):format(Config.ConsolePrefix, tableName, entry[2], entry[3]))
+            else
+                print(('%scould not rename %s.%s, run this by hand: %s;'):format(Config.ConsolePrefix, tableName, entry[2], sql))
+            end
+        end
+    end
+end
 
 local function ensureSchema()
     if not useMysql then return end
 
-    Storage.Execute(([[
+    MySQL.update.await(([[
         CREATE TABLE IF NOT EXISTS `%s` (
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `identifier` VARCHAR(64) NOT NULL,
             `identifiers` TEXT NULL,
             `name` VARCHAR(64) NOT NULL DEFAULT '',
             `reason` VARCHAR(255) NOT NULL DEFAULT '',
-            `banned_by` VARCHAR(64) NOT NULL DEFAULT '',
-            `created_at` INT UNSIGNED NOT NULL DEFAULT 0,
-            `expires_at` INT UNSIGNED NOT NULL DEFAULT 0,
+            `bannedby` VARCHAR(64) NOT NULL DEFAULT '',
+            `createdat` INT UNSIGNED NOT NULL DEFAULT 0,
+            `expiresat` INT UNSIGNED NOT NULL DEFAULT 0,
             `active` TINYINT(1) NOT NULL DEFAULT 1,
             PRIMARY KEY (`id`),
             KEY `identifier` (`identifier`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]]):format(Config.Database.banTable))
 
-    Storage.Execute(([[
+    MySQL.update.await(([[
         CREATE TABLE IF NOT EXISTS `%s` (
             `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
             `category` VARCHAR(32) NOT NULL,
-            `created_at` INT UNSIGNED NOT NULL DEFAULT 0,
+            `createdat` INT UNSIGNED NOT NULL DEFAULT 0,
             `actor` VARCHAR(64) NOT NULL DEFAULT '',
-            `actor_name` VARCHAR(64) NOT NULL DEFAULT '',
+            `actorname` VARCHAR(64) NOT NULL DEFAULT '',
             `target` VARCHAR(64) NOT NULL DEFAULT '',
-            `target_name` VARCHAR(64) NOT NULL DEFAULT '',
+            `targetname` VARCHAR(64) NOT NULL DEFAULT '',
             `message` TEXT NULL,
             `data` TEXT NULL,
             PRIMARY KEY (`id`),
@@ -172,11 +275,12 @@ local function ensureSchema()
             KEY `target` (`target`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]]):format(Config.Database.logTable))
+
+    renameOldColumns()
 end
 
 CreateThread(function()
     if useMysql then
-        -- oxmysql needs a moment to come up if it started alongside tsivtools.
         local waited = 0
         while GetResourceState('oxmysql') ~= 'started' and waited < 10000 do
             Wait(250)
@@ -194,4 +298,6 @@ CreateThread(function()
     else
         print(('%sstorage: file (tsivtools/data)'):format(Config.ConsolePrefix))
     end
+
+    ready = true
 end)

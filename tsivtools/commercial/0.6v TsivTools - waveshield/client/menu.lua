@@ -1,6 +1,6 @@
-TSIV.Menu = {}
+tsivtools.Menu = {}
 
-local Menu = TSIV.Menu
+local Menu = tsivtools.Menu
 local Item = {}
 Item.__index = Item
 
@@ -211,9 +211,15 @@ function Menu.Refresh()
     if index > #current.items then
         index = math.max(1, #current.items)
     end
+    local maxVisible = Config.menumaxvisible
+    if offset > math.max(0, #current.items - maxVisible) then
+        offset = math.max(0, #current.items - maxVisible)
+    end
+    if index <= offset then offset = index - 1 end
 end
 
 local function push(menu)
+    current.lastIndex, current.lastOffset = index, offset
     stack[#stack + 1] = menu
     current = menu
     index = firstSelectable(1, 1)
@@ -229,8 +235,8 @@ local function pop()
     end
     table.remove(stack)
     current = stack[#stack]
-    index = firstSelectable(1, 1)
-    offset = 0
+    index = current.lastIndex or firstSelectable(1, 1)
+    offset = current.lastOffset or 0
     sound('BACK')
     if current.onOpen then current.onOpen(current) end
 end
@@ -458,7 +464,8 @@ RegisterNUICallback('inputCancel', function(_, cb)
 end)
 
 local function nuiInput(title, default, maxLength, numeric)
-    pending = { done = false, value = nil }
+    local request = { done = false, value = nil }
+    pending = request
 
     Menu.LockInput(true)
     SetNuiFocus(true, true)
@@ -470,15 +477,14 @@ local function nuiInput(title, default, maxLength, numeric)
         numeric = numeric and true or false,
     })
 
-    local waited = 0
-    while not pending.done and waited < 120000 do
+    local deadline = GetGameTimer() + 120000
+    while not request.done and GetGameTimer() < deadline do
         Wait(50)
-        waited = waited + 50
     end
 
-    local result = pending.value
-    local timedOut = not pending.done
-    pending = nil
+    local result = request.value
+    local timedOut = not request.done
+    if pending == request then pending = nil end
 
     if timedOut then
         SendNUIMessage({ action = 'closeInput' })
@@ -488,7 +494,7 @@ local function nuiInput(title, default, maxLength, numeric)
     Menu.LockInput(false)
 
     if timedOut then
-        TSIV.Notify('The text box timed out !', 'error')
+        tsivtools.Notify('The text box timed out !', 'error')
         return nil
     end
 
@@ -502,17 +508,17 @@ local function nativeInput(title, default, maxLength)
     DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', (maxLength or 64) + 1)
 
     local status = UpdateOnscreenKeyboard()
-    local waited = 0
-    while status ~= 1 and status ~= 2 and waited < 120000 do
+    local deadline = GetGameTimer() + 120000
+    while status ~= 1 and status ~= 2 and GetGameTimer() < deadline do
         DisableAllControlActions(0)
         Wait(0)
-        waited = waited + 1
         status = UpdateOnscreenKeyboard()
     end
 
     Menu.LockInput(false)
 
     if status ~= 1 then
+        if status == 0 then CancelOnscreenKeyboard() end
         return nil
     end
 
@@ -521,14 +527,14 @@ local function nativeInput(title, default, maxLength)
     return result
 end
 
-function TSIV.Input(title, default, maxLength)
+function tsivtools.Input(title, default, maxLength)
     if Config.usenuiinput then
         return nuiInput(title, default, maxLength, false)
     end
     return nativeInput(title, default, maxLength)
 end
 
-function TSIV.InputNumber(title, default, maxLength)
+function tsivtools.InputNumber(title, default, maxLength)
     local value
     if Config.usenuiinput then
         value = nuiInput(title, default and tostring(default) or '', maxLength or 10, true)
@@ -541,6 +547,6 @@ function TSIV.InputNumber(title, default, maxLength)
 end
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource ~= TSIV.resource then return end
+    if resource ~= tsivtools.resource then return end
     SetNuiFocus(false, false)
 end)

@@ -1,6 +1,6 @@
-TSIV.Clips = {}
+tsivtools.Clips = {}
 
-local Clips = TSIV.Clips
+local Clips = tsivtools.Clips
 local settings = Config.anticheat.clips
 
 local captures = {}
@@ -48,22 +48,25 @@ end
 Clips.Decode = b64decode
 
 local function webhookUrl()
-    if settings.webhook and settings.webhook ~= '' then return settings.webhook end
-
-    local convar = settings.webhookConvar
-    if convar and convar ~= '' then
-        local value = GetConvar(convar, '')
-        if value and value ~= '' then return value end
-    end
+    local value = GetConvar(settings.webhookConvar, '')
+    if value ~= '' then return value end
+    if settings.webhook ~= '' then return settings.webhook end
     return nil
 end
+
+CreateThread(function()
+    if settings.webhook ~= '' then
+        print(('%sthe ban clip webhook is written in config.lua, which every player downloads. Move it to server.cfg: set %s "<url>"')
+            :format(Config.consoleprefix, settings.webhookConvar))
+    end
+end)
 
 Clips.Webhook = webhookUrl
 
 function Clips.Available()
     if not Config.anticheat.enabled then return false end
-    if not TSIV.Module('banClips') then return false end
-    if settings.enabled == false then return false end
+    if not tsivtools.Module('banClips') then return false end
+    if not settings.enabled then return false end
     if GetResourceState('screenshot-basic') ~= 'started' then return false end
     return webhookUrl() ~= nil
 end
@@ -93,14 +96,6 @@ local function multipart(url, payload, files)
     })
 end
 
-local function postJson(url, payload)
-    PerformHttpRequest(url, function(status)
-        if status ~= 200 and status ~= 204 then
-            print(('%sclip webhook returned %s'):format(Config.consoleprefix, tostring(status)))
-        end
-    end, 'POST', json.encode(payload), { ['Content-Type'] = 'application/json' })
-end
-
 local function embedFor(context, framesFound)
     return {
         username = settings.username ~= '' and settings.username or nil,
@@ -114,7 +109,7 @@ local function embedFor(context, framesFound)
                 { name = 'Identifier', value = ('`%s`'):format(context.identifier), inline = false },
                 { name = 'Frames', value = ('%d over %.1f second(s)'):format(framesFound, settings.seconds), inline = true },
             },
-            footer = { text = ('TsivTools  /  %s'):format(TSIV.FormatTimestamp(os.time())) },
+            footer = { text = ('TsivTools  /  %s'):format(tsivtools.FormatTimestamp(os.time())) },
         } },
     }
 end
@@ -137,7 +132,7 @@ local function finish(id)
         local frame = entry.frames[index]
         if frame and frame.complete then
             local data = b64decode(table.concat(frame.parts))
-            if #data > 0 then
+            if data:sub(1, 3) == '\255\216\255' then
                 files[#files + 1] = { name = ('clip_%d_%02d.jpg'):format(id, index), data = data }
             end
         end
@@ -163,15 +158,15 @@ function Clips.Before(src, reason, done)
     local id = nextId
     nextId = nextId + 1
 
-    local frames = math.max(1, TSIV.ToInt(settings.frames, 1, 10) or 3)
-    local span = math.max(1.0, tonumber(settings.seconds) or 5.0)
+    local frames = tsivtools.ToInt(settings.frames, 1, 10) or 3
+    local span = math.max(1.0, settings.seconds)
 
     local context = {
         id = src,
-        name = TSIV.GetName(src),
-        steam = TSIV.GetSteamId(src),
-        identifier = TSIV.GetPrimaryIdentifier(src),
-        reason = TSIV.SafeString(reason, 200),
+        name = tsivtools.GetName(src),
+        steam = tsivtools.GetSteamId(src),
+        identifier = tsivtools.GetPrimaryIdentifier(src),
+        reason = tsivtools.SafeString(reason, 200),
     }
 
     captures[id] = {
@@ -183,42 +178,28 @@ function Clips.Before(src, reason, done)
         done = done,
     }
 
-    TriggerClientEvent(TSIV.Events.clipRequest, src, {
+    TriggerClientEvent(tsivtools.Events.clipRequest, src, {
         id = id,
-        mode = settings.mode,
         frames = frames,
         intervalMs = math.floor(span * 1000 / frames),
-        quality = tonumber(settings.quality) or 0.35,
-        freeze = settings.freezeTarget ~= false,
-        url = settings.mode == 'direct' and url or nil,
+        quality = settings.quality,
+        freeze = settings.freezeTarget,
     })
 
-    if settings.mode == 'direct' then
-        postJson(url, embedFor(context, frames))
-        SetTimeout(math.max(1000, settings.holdMs or 7000), function()
-            local entry = captures[id]
-            if entry then
-                captures[id] = nil
-                release(entry)
-            end
-        end)
-        return
-    end
-
-    SetTimeout(math.max(1000, settings.holdMs or 7000), function()
+    SetTimeout(math.max(1000, settings.holdMs), function()
         finish(id)
     end)
 end
 
-RegisterNetEvent(TSIV.Events.clipUpload, function(id, index, part, total, data)
+RegisterNetEvent(tsivtools.Events.clipUpload, function(id, index, part, total, data)
     local src = source
 
     local entry = captures[id]
     if not entry or entry.src ~= src then return end
 
-    index = TSIV.ToInt(index, 1, entry.expected)
-    part = TSIV.ToInt(part, 1, 64)
-    total = TSIV.ToInt(total, 1, 64)
+    index = tsivtools.ToInt(index, 1, entry.expected)
+    part = tsivtools.ToInt(part, 1, 64)
+    total = tsivtools.ToInt(total, 1, 64)
     if not index or not part or not total or part > total then return end
     if type(data) ~= 'string' then return end
 
@@ -231,7 +212,7 @@ RegisterNetEvent(TSIV.Events.clipUpload, function(id, index, part, total, data)
     if frame.complete or frame.parts[part] then return end
 
     frame.size = frame.size + #data
-    if frame.size > (settings.maxFrameBytes or 700000) then
+    if frame.size > settings.maxFrameBytes then
         frame.complete = false
         return
     end

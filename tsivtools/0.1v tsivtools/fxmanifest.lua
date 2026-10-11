@@ -31,8 +31,6 @@ server_scripts {
     'server/anticheat.lua',
 }
 
--- Optional. Only loaded when Config.Database.enabled is true.
--- Requires oxmysql to be started before tsivtools.
 dependencies {
     '/server:5848',
     '/onesync',

@@ -63,7 +63,7 @@
 
     function renderScroll(scroll) {
         if (!scroll) {
-            scrollEl.classList.add('menu__scroll--hidden');
+            scrollEl.classList.add('menu-scroll--hidden');
             return;
         }
 
@@ -76,7 +76,7 @@
             '  ' + (scroll.more || 0) + ' more  ' +
             (scroll.down ? 'v' : ' ');
 
-        scrollEl.classList.remove('menu__scroll--hidden');
+        scrollEl.classList.remove('menu-scroll--hidden');
     }
 
     function hide() {
@@ -112,13 +112,13 @@
 
         if (data.description) {
             descriptionTextEl.textContent = data.description;
-            descriptionEl.classList.remove('menu__description--hidden');
+            descriptionEl.classList.remove('menu-description--hidden');
         } else {
             descriptionTextEl.textContent = '';
-            descriptionEl.classList.add('menu__description--hidden');
+            descriptionEl.classList.add('menu-description--hidden');
         }
 
-        creditEl.classList.toggle('menu__credit--hidden', data.watermark === false);
+        creditEl.classList.toggle('menu-credit--hidden', data.watermark === false);
 
         menu.classList.remove('menu--hidden');
     }

@@ -1,6 +1,6 @@
-TSIV.Menu = {}
+tsivtools.Menu = {}
 
-local Menu = TSIV.Menu
+local Menu = tsivtools.Menu
 local Item = {}
 Item.__index = Item
 
@@ -10,7 +10,6 @@ local index = 1
 local offset = 0
 local lastInput = 0
 local inputLocked = false
-
 
 local layout = {
     width = 0.230,
@@ -38,7 +37,6 @@ local function colour()
     return c[1], c[2], c[3]
 end
 
-
 local function drawText(text, x, y, scale, r, g, b, a, align)
     SetTextFont(layout.font)
     SetTextScale(scale, scale)
@@ -54,7 +52,6 @@ local function drawText(text, x, y, scale, r, g, b, a, align)
     DrawText(x, y)
 end
 
-
 local function descriptionLines(text)
     local perLine = 42
     return math.max(1, math.ceil(#text / perLine))
@@ -63,7 +60,6 @@ end
 local function drawRect(x, y, w, h, r, g, b, a)
     DrawRect(x + w / 2, y + h / 2, w, h, r, g, b, a)
 end
-
 
 local function newItem(kind, label, description)
     return setmetatable({
@@ -93,7 +89,6 @@ function Item:rightText()
     end
     return self.right or ''
 end
-
 
 local MenuObject = {}
 MenuObject.__index = MenuObject
@@ -168,7 +163,6 @@ function MenuObject:SelectedItem()
     return self.items[index]
 end
 
-
 local function firstSelectable(from, direction)
     local count = #current.items
     if count == 0 then return 1 end
@@ -217,6 +211,11 @@ function Menu.Refresh()
     if index > #current.items then
         index = math.max(1, #current.items)
     end
+    local maxVisible = Config.MenuMaxVisible
+    if offset > math.max(0, #current.items - maxVisible) then
+        offset = math.max(0, #current.items - maxVisible)
+    end
+    if index <= offset then offset = index - 1 end
 end
 
 local function push(menu)
@@ -243,7 +242,6 @@ end
 
 Menu.Back = pop
 
-
 function Menu.Push(menu)
     if not current then
         Menu.Open(menu)
@@ -251,7 +249,6 @@ function Menu.Push(menu)
     end
     push(menu)
 end
-
 
 local function move(direction)
     local count = #current.items
@@ -312,20 +309,19 @@ local function select()
     end
 end
 
-
 local controlsToDisable = {
-    1, 2,         
-    24, 25,       
-    37,            
-    44,            
-    140, 141, 142, 
+    1, 2,
+    24, 25,
+    37,
+    44,
+    140, 141, 142,
     143,
     257, 263, 264,
-    288, 289,      
-    170,           
-    166, 167, 168, 
-    73,            
-    172, 173, 174, 175, 176, 177, 
+    288, 289,
+    170,
+    166, 167, 168,
+    73,
+    172, 173, 174, 175, 176, 177,
 }
 
 local function drawMenu()
@@ -418,12 +414,12 @@ local function handleInput()
         return false
     end
 
-    if pressed(172, true) then move(-1) end         
-    if pressed(173, true) then move(1) end          
-    if pressed(174, true) then changeList(-1) end   
-    if pressed(175, true) then changeList(1) end    
-    if pressed(176) then select() end              
-    if pressed(177) then pop() end                 
+    if pressed(172, true) then move(-1) end
+    if pressed(173, true) then move(1) end
+    if pressed(174, true) then changeList(-1) end
+    if pressed(175, true) then changeList(1) end
+    if pressed(176) then select() end
+    if pressed(177) then pop() end
 end
 
 CreateThread(function()
@@ -437,8 +433,6 @@ CreateThread(function()
         end
     end
 end)
-
-
 
 function Menu.LockInput(state)
     inputLocked = state and true or false
@@ -468,9 +462,9 @@ RegisterNUICallback('inputCancel', function(_, cb)
     cb('ok')
 end)
 
-
 local function nuiInput(title, default, maxLength, numeric)
-    pending = { done = false, value = nil }
+    local request = { done = false, value = nil }
+    pending = request
 
     Menu.LockInput(true)
     SetNuiFocus(true, true)
@@ -482,16 +476,14 @@ local function nuiInput(title, default, maxLength, numeric)
         numeric = numeric and true or false,
     })
 
-
-    local waited = 0
-    while not pending.done and waited < 120000 do
+    local deadline = GetGameTimer() + 120000
+    while not request.done and GetGameTimer() < deadline do
         Wait(50)
-        waited = waited + 50
     end
 
-    local result = pending.value
-    local timedOut = not pending.done
-    pending = nil
+    local result = request.value
+    local timedOut = not request.done
+    if pending == request then pending = nil end
 
     if timedOut then
         SendNUIMessage({ action = 'closeInput' })
@@ -501,13 +493,12 @@ local function nuiInput(title, default, maxLength, numeric)
     Menu.LockInput(false)
 
     if timedOut then
-        TSIV.Notify('The text box timed out.', 'error')
+        tsivtools.Notify('The text box timed out !', 'error')
         return nil
     end
 
     return result
 end
-
 
 local function nativeInput(title, default, maxLength)
     Menu.LockInput(true)
@@ -515,19 +506,18 @@ local function nativeInput(title, default, maxLength)
     AddTextEntry('TSIVTOOLS_INPUT', title or 'Enter a value')
     DisplayOnscreenKeyboard(1, 'TSIVTOOLS_INPUT', '', default or '', '', '', '', (maxLength or 64) + 1)
 
-
     local status = UpdateOnscreenKeyboard()
-    local waited = 0
-    while status ~= 1 and status ~= 2 and waited < 120000 do
+    local deadline = GetGameTimer() + 120000
+    while status ~= 1 and status ~= 2 and GetGameTimer() < deadline do
         DisableAllControlActions(0)
         Wait(0)
-        waited = waited + 1
         status = UpdateOnscreenKeyboard()
     end
 
     Menu.LockInput(false)
 
     if status ~= 1 then
+        if status == 0 then CancelOnscreenKeyboard() end
         return nil
     end
 
@@ -536,14 +526,14 @@ local function nativeInput(title, default, maxLength)
     return result
 end
 
-function TSIV.Input(title, default, maxLength)
+function tsivtools.Input(title, default, maxLength)
     if Config.UseNuiInput then
         return nuiInput(title, default, maxLength, false)
     end
     return nativeInput(title, default, maxLength)
 end
 
-function TSIV.InputNumber(title, default, maxLength)
+function tsivtools.InputNumber(title, default, maxLength)
     local value
     if Config.UseNuiInput then
         value = nuiInput(title, default and tostring(default) or '', maxLength or 10, true)
@@ -556,6 +546,6 @@ function TSIV.InputNumber(title, default, maxLength)
 end
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource ~= TSIV.resource then return end
+    if resource ~= tsivtools.resource then return end
     SetNuiFocus(false, false)
 end)
