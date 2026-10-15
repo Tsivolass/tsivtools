@@ -48,9 +48,10 @@ local function waveRequest(method, path, query, body)
         [api.apiKeyHeader] = GetConvar(api.apiKeyConvar, ''),
         [api.apiSecretHeader] = GetConvar(api.apiSecretConvar, ''),
     }
-    PerformHttpRequest(url, function(status, response)
+    PerformHttpRequest(url, function(status, response, _, errorData)
         pending.status = status or 0
         pending.body = response
+        pending.error = errorData
         pending.done = true
     end, method, body and json.encode(body) or '', headers)
 
@@ -61,7 +62,8 @@ local function waveRequest(method, path, query, body)
     end
     if not pending.done then return nil, 'request timed out' end
     if pending.status < 200 or pending.status >= 300 then
-        return nil, ('HTTP %d'):format(pending.status)
+        local reason = tsivtools.SafeString(pending.error, 200)
+        return nil, ('HTTP %d%s'):format(pending.status, reason ~= '' and (' - ' .. reason) or '')
     end
     local ok, decoded = pcall(json.decode, pending.body or '')
     if not ok or type(decoded) ~= 'table' then return nil, 'invalid JSON response' end
