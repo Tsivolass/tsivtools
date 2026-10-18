@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="input.css">
+    <link rel="stylesheet" href="menu.css">
+</head>
+<body>
+    <div id="menu" class="hidden right">
+        <div class="panel">
+            <div class="head">
+                <div class="brand">
+                    <span class="dot"></span>
+                    <div class="brand-text">
+                        <div id="menu-title">Staff Panel</div>
+                        <div id="menu-subtitle"></div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div class="search">
+                <span class="search-icon">&#9906;</span>
+                <input id="menu-search" type="text" placeholder="Search..." autocomplete="off" autocorrect="off" spellcheck="false">
+                <span id="menu-path"></span>
+            </div>
+
+            <div id="menu-cats" class="cats"></div>
+
+            <div id="menu-items" class="items"></div>
+
+            
+        </div>
+    </div>
+
+    <div id="overlay" class="hidden">
+        <div id="box">
+            <div id="head">
+                <div id="title">Enter a value</div>
+                <span id="counter"></span>
+            </div>
+            <input id="field" type="text" autocomplete="off" autocorrect="off" spellcheck="false">
+            <div id="row">
+                <span id="hint">Enter to confirm<br>Esc to cancel</span>
+                <div id="actions">
+                    <button id="cancel" class="key" type="button" tabindex="-1">Cancel</button>
+                    <button id="confirm" class="key" type="button" tabindex="-1">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="input.js"></script>
+    <script src="menu.js"></script>
+</body>
+</html>
