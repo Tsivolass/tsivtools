@@ -30,9 +30,40 @@ local function waveConfigured()
         and GetConvar(api.apiSecretConvar, '') ~= ''
 end
 
+local resourceName = GetCurrentResourceName()
+
+local function waitFor(pending, timeoutMs)
+    local waited = 0
+    while not pending.done and waited < timeoutMs do
+        Wait(25)
+        waited = waited + 25
+    end
+    return pending.done
+end
+
+-- FXServer's PerformHttpRequest refuses some hosts outright (it blocks every .xyz domain,
+-- see citizenfx/fivem#4203) and answers with status 0. server/https.js sends the same
+-- request through the server's Node.js runtime instead.
+local function nodeRequest(url, method, payload, headers, timeoutMs)
+    local pending = { done = false, status = 0 }
+    local ok, err = pcall(function()
+        exports[resourceName]:waveHttpsRequest(url, method, payload, headers, timeoutMs,
+            function(status, response, errorData)
+                pending.status = tonumber(status) or 0
+                pending.body = response
+                pending.error = errorData
+                pending.done = true
+            end)
+    end)
+    if not ok then return { done = true, status = 0, error = 'Node.js request unavailable: ' .. tostring(err) } end
+    if not waitFor(pending, timeoutMs + 1000) then return { done = true, status = 0, error = 'request timed out' } end
+    return pending
+end
+
 local function waveRequest(method, path, query, body)
     if not waveConfigured() or not path or path == '' then return nil, 'not configured' end
     local api = Config.waveshield.api
+    local timeoutMs = tonumber(api.timeoutMs) or 10000
     local url = api.baseUrl .. path
     local queryParts = {}
     for key, value in pairs(query or {}) do
@@ -42,26 +73,41 @@ local function waveRequest(method, path, query, body)
     end
     if #queryParts > 0 then url = url .. '?' .. table.concat(queryParts, '&') end
 
+    -- json.encode({}) gives "[]", which is not a JSON object; send "{}" for an empty body
+    local payload = ''
+    if body ~= nil then payload = next(body) == nil and '{}' or json.encode(body) end
+
     local pending = { done = false, status = 0, body = nil }
     local headers = {
         ['Content-Type'] = 'application/json',
         [api.apiKeyHeader] = GetConvar(api.apiKeyConvar, ''),
         [api.apiSecretHeader] = GetConvar(api.apiSecretConvar, ''),
     }
-    PerformHttpRequest(url, function(status, response)
+    PerformHttpRequest(url, function(status, response, _, errorData)
         pending.status = status or 0
         pending.body = response
+        pending.error = errorData
         pending.done = true
-    end, method, body and json.encode(body) or '', headers)
+    end, method, payload, headers)
 
-    local waited = 0
-    while not pending.done and waited < api.timeoutMs do
-        Wait(25)
-        waited = waited + 25
+    if not waitFor(pending, timeoutMs) then return nil, 'request timed out' end
+    if pending.status == 0 then
+        local fxError = tsivtools.SafeString(pending.error, 120)
+        pending = nodeRequest(url, method, payload, headers, timeoutMs)
+        if pending.status == 0 then
+            local reason = tsivtools.SafeString(pending.error, 120)
+            return nil, ('HTTP 0 - %s; Node.js fallback: %s'):format(fxError ~= '' and fxError or 'no answer',
+                reason ~= '' and reason or 'no answer')
+        end
     end
-    if not pending.done then return nil, 'request timed out' end
     if pending.status < 200 or pending.status >= 300 then
-        return nil, ('HTTP %d'):format(pending.status)
+        -- FiveM reports HTTP errors as "HTTP 401: <body>"; keep only the part after the code
+        local reason = tsivtools.SafeString(pending.error, 200):gsub('^HTTP %d+:?%s*', '')
+        local ok, decoded = pcall(json.decode, pending.body or '')
+        if ok and type(decoded) == 'table' and decoded.error then
+            reason = tsivtools.SafeString(decoded.error, 200)
+        end
+        return nil, ('HTTP %d%s'):format(pending.status, reason ~= '' and (' - ' .. reason) or '')
     end
     local ok, decoded = pcall(json.decode, pending.body or '')
     if not ok or type(decoded) ~= 'table' then return nil, 'invalid JSON response' end
@@ -144,7 +190,7 @@ local function remember(src)
 end
 
 local function forgetOldPlayers()
-    local cutoff = now() - Config.security.historyDays * 86400
+    local cutoff = now() - (tonumber(Config.security.historyDays) or 90) * 86400
     local changed = false
     for identifier, entry in pairs(history) do
         if entry.identifiers then
@@ -543,7 +589,7 @@ RegisterNetEvent('tsivtools:security:monitor', function(target, minutes)
     local src = source
     if not tsivtools.Can(src, 'security.monitor') then return end
     target = tsivtools.ResolveTarget(target)
-    minutes = tsivtools.ToInt(minutes, 1, Config.security.maxMonitorMinutes)
+    minutes = tsivtools.ToInt(minutes, 1, tonumber(Config.security.maxMonitorMinutes) or 10)
     if not target or not minutes then tsivtools.Notify(src, 'Invalid player or monitor duration.', 'error'); return end
     Logs.Staff(src, ('Started a %d minute security monitor for %s'):format(minutes, tsivtools.Describe(target)), target)
     monitors[target] = now() + minutes * 60
