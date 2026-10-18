@@ -30,6 +30,7 @@ files {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'server/https.js',
     'server/storage.lua',
     'server/core.lua',
     'server/discord.lua',
