@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="input.css">
+</head>
+<body>
+    <div id="overlay" class="hidden">
+        <div id="box">
+            <div id="head">
+                <div id="title">Enter a value</div>
+                <span id="counter"></span>
+            </div>
+            <input id="field" type="text" autocomplete="off" autocorrect="off" spellcheck="false">
+            <div id="row">
+                <span id="hint">Enter to confirm<br>Esc to cancel</span>
+                <div id="actions">
+                    <button id="cancel" class="key" type="button" tabindex="-1">Cancel</button>
+                    <button id="confirm" class="key" type="button" tabindex="-1">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="input.js"></script>
+</body>
+</html>
